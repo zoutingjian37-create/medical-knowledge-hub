@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>平台状态 - Medical Knowledge Hub</title>
+    <link rel="stylesheet" href="/static/css/app.css">
+    <style>
+        body { background:#f6f8fb; color:#172033; font-family:system-ui,"Microsoft YaHei",sans-serif; }
+        main { max-width:1080px; margin:0 auto; padding:32px 24px 64px; }
+        h1 { margin:0 0 8px; font-size:28px; }
+        .lead { color:#667085; margin:0 0 24px; line-height:1.6; }
+        .notice,.panel,.platform-card { background:#fff; border:1px solid #e7eaf0; border-radius:14px; }
+        .notice { padding:18px 20px; margin-bottom:22px; }
+        .notice a { color:#1677ff; font-weight:600; }
+        .platform-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; margin-bottom:24px; }
+        .platform-card { padding:20px; }
+        .platform-head { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+        .platform-head h2 { margin:0; font-size:19px; }
+        .badge { border-radius:999px; padding:4px 10px; font-size:13px; background:#f2f4f7; color:#475467; }
+        .badge.ok { color:#067647; background:#ecfdf3; }
+        .badge.warn { color:#b54708; background:#fffaeb; }
+        .platform-card p { min-height:44px; color:#667085; }
+        button { border:0; border-radius:9px; padding:10px 15px; background:#1677ff; color:#fff; font-weight:600; cursor:pointer; }
+        button.secondary { background:#eef4ff; color:#175cd3; }
+        .panel { padding:22px; }
+        .panel h2 { margin:0 0 6px; }
+        .form-row { display:grid; grid-template-columns:180px 1fr auto; gap:10px; margin-top:18px; }
+        select,input { width:100%; box-sizing:border-box; border:1px solid #d0d5dd; border-radius:9px; padding:11px 12px; font:inherit; background:#fff; }
+        .result { margin-top:18px; padding:16px; border-radius:10px; background:#f8fafc; white-space:pre-wrap; display:none; }
+        .result.show { display:block; }
+        @media(max-width:760px){ .platform-grid,.form-row{grid-template-columns:1fr;} }
+    </style>
+</head>
+<body>
+<main>
+    <h1>平台状态</h1>
+    <p class="lead">查看五个平台现在能不能读取内容，也可以在下方测试一个公开链接。</p>
+
+    <section class="notice">
+        知乎、B站、小红书和抖音需要安装
+        <a href="https://chromewebstore.google.com/detail/opencli/ildkmabpimmkaediidaifkhjpohdnifk" target="_blank" rel="noopener noreferrer">OpenCLI 浏览器连接器</a>。
+        微信链接解析不需要公众号后台扫码登录。
+    </section>
+
+    <section id="platformGrid" class="platform-grid" aria-live="polite"></section>
+
+    <section class="panel">
+        <h2>测试链接</h2>
+        <p class="lead">只读取内容，不会点赞、评论或发布。</p>
+        <div class="form-row">
+            <select id="platformSelect" aria-label="选择平台"></select>
+            <input id="contentUrl" type="url" placeholder="粘贴公开内容链接">
+            <button id="fetchButton">读取内容</button>
+        </div>
+        <div id="fetchResult" class="result"></div>
+    </section>
+</main>
+<script src="/static/js/api-client.js"></script>
+<script src="/static/js/app-shell.js"></script>
+<script>
+(function () {
+    "use strict";
+    var names = { wechat:"微信公众号", zhihu:"知乎", bilibili:"B站", xiaohongshu:"小红书", douyin:"抖音" };
+    var descriptions = {
+        wechat:"读取你粘贴的公众号文章链接",
+        zhihu:"读取公开回答和文章",
+        bilibili:"读取公开视频信息和字幕",
+        xiaohongshu:"读取公开笔记",
+        douyin:"读取公开视频"
+    };
+
+    function setBadge(card,text,className){
+        var badge=card.querySelector(".badge");
+        badge.textContent=text;
+        badge.className="badge "+className;
+    }
+    async function checkHealth(key,card){
+        setBadge(card,"检查中","");
+        try{
+            var result=await window.ContentHubAPI.get("/api/ext/platforms/"+key+"/health");
+            setBadge(card,result.available?"可以使用":"等待连接",result.available?"ok":"warn");
+            card.querySelector(".detail").textContent=result.detail||descriptions[key];
+        }catch(error){
+            setBadge(card,"检查失败","warn");
+            card.querySelector(".detail").textContent=error.message;
+        }
+    }
+    function renderPlatform(item){
+        var card=document.createElement("article");
+        card.className="platform-card";
+        card.innerHTML='<div class="platform-head"><h2></h2><span class="badge">已接入</span></div>'
+            +'<p class="detail"></p><button class="secondary">重新检查</button>';
+        card.querySelector("h2").textContent=names[item.key]||item.display_name;
+        card.querySelector(".detail").textContent=descriptions[item.key]||"统一内容采集";
+        card.querySelector("button").addEventListener("click",function(){checkHealth(item.key,card);});
+        checkHealth(item.key,card);
+        return card;
+    }
+    async function loadPlatforms(){
+        var response=await window.ContentHubAPI.get("/api/ext/platforms");
+        var grid=document.getElementById("platformGrid");
+        var select=document.getElementById("platformSelect");
+        response.platforms.forEach(function(item){
+            grid.appendChild(renderPlatform(item));
+            var option=document.createElement("option");
+            option.value=item.key;
+            option.textContent=names[item.key]||item.display_name;
+            select.appendChild(option);
+        });
+    }
+    document.getElementById("fetchButton").addEventListener("click",async function(){
+        var key=document.getElementById("platformSelect").value;
+        var url=document.getElementById("contentUrl").value.trim();
+        var box=document.getElementById("fetchResult");
+        box.className="result show";
+        box.textContent="正在读取…";
+        try{
+            var response=await window.ContentHubAPI.post("/api/ext/platforms/"+key+"/fetch",{url:url});
+            var content=response.content;
+            box.textContent="标题："+(content.title||"未命名")+"\n作者："+(content.creator_name||"未识别")
+                +"\n\n"+(content.body_text||"已读取，但正文为空。").slice(0,800);
+        }catch(error){ box.textContent="暂时无法读取："+error.message; }
+    });
+    loadPlatforms().catch(function(error){
+        document.getElementById("platformGrid").textContent="平台加载失败："+error.message;
+    });
+}());
+</script>
+</body>
+</html>

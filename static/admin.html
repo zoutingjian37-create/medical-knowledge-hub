@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>首页 - Medical Knowledge Hub</title>
+    <link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+    <div id="app-shell"></div>
+    <main class="page-shell">
+        <header class="page-header">
+            <p class="eyebrow">MEDICAL KNOWLEDGE HUB</p>
+            <h1>医学知识工作台</h1>
+            <p>支持微信、知乎、B站、小红书和抖音，自动识别并提取内容。</p>
+        </header>
+
+        <section class="card-grid">
+            <a class="card" href="/inbox.html">
+                <h2>粘贴链接</h2>
+                <p>粘贴文章或视频链接，自动提取重点。</p>
+            </a>
+            <a class="card" href="/wechat-collect.html">
+                <h2>公众号查找</h2>
+                <p>按公众号名称查找公开文章，并加入待处理列表。</p>
+            </a>
+            <a class="card" href="/review.html">
+                <h2>查看与保存</h2>
+                <p>查看提取结果；确认后保存到 Obsidian。</p>
+            </a>
+            <a class="card" href="/platforms.html">
+                <h2>平台状态</h2>
+                <p>检查各平台现在能不能正常读取内容。</p>
+            </a>
+            <a class="card" href="/api/docs">
+                <h2>接口说明</h2>
+                <p>查看本地接口，供开发和排错使用。</p>
+            </a>
+        </section>
+
+        <p><a href="https://github.com/zoutingjian37-create/medical-knowledge-hub">GitHub 仓库</a></p>
+    </main>
+    <script src="/static/js/api-client.js"></script>
+    <script src="/static/js/app-shell.js"></script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+services:
+  medical-knowledge-hub:
+    build: .
+    ports:
+      - "127.0.0.1:5000:5000"
+    env_file:
+      - .env
+    environment:
+      HOST: 0.0.0.0
+      ALLOW_NETWORK_ACCESS: 1
+    restart: unless-stopped
