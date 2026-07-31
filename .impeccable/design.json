@@ -1,0 +1,140 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-01T00:00:00+08:00",
+  "title": "Design System: Medical Knowledge Hub",
+  "extensions": {
+    "colorMeta": {
+      "primary": {
+        "role": "primary",
+        "displayName": "研究青绿",
+        "canonical": "#087e78",
+        "tonalRamp": ["#073936", "#07524e", "#066b65", "#087e78", "#39a29c", "#72c2bd", "#b7dfdc", "#edf8f7"]
+      },
+      "neutral-canvas": {
+        "role": "neutral",
+        "displayName": "工作台底色",
+        "canonical": "#f4f6f7",
+        "tonalRamp": ["#20272b", "#3b454b", "#59656b", "#78858b", "#9aa5aa", "#bcc5c9", "#dce2e4", "#f4f6f7"]
+      },
+      "neutral-ink": {
+        "role": "neutral",
+        "displayName": "主墨色",
+        "canonical": "#17233a",
+        "tonalRamp": ["#11192a", "#17233a", "#2f3d55", "#4b5870", "#69768d", "#909aaa", "#c1c7d0", "#eef0f3"]
+      }
+    },
+    "typographyMeta": {
+      "headline": {
+        "displayName": "页面标题",
+        "purpose": "操作页面的单一主任务标题。"
+      },
+      "body": {
+        "displayName": "正文",
+        "purpose": "说明任务、来源与结果。"
+      },
+      "label": {
+        "displayName": "操作标签",
+        "purpose": "导航、按钮、步骤和状态。"
+      }
+    },
+    "shadows": [
+      {
+        "name": "panel-ambient",
+        "value": "0 12px 32px rgba(32, 52, 65, 0.06)",
+        "purpose": "区分主页级工作面板与全局底色。"
+      }
+    ],
+    "motion": [
+      {
+        "name": "state-fast",
+        "value": "150ms ease",
+        "purpose": "导航、按钮和索引行的悬停与状态反馈。"
+      },
+      {
+        "name": "reduced-motion",
+        "value": "0.01ms",
+        "purpose": "用户偏好减少动效时关闭过渡。"
+      }
+    ],
+    "breakpoints": [
+      { "name": "compact-grid", "value": "1080px" },
+      { "name": "top-navigation", "value": "900px" },
+      { "name": "single-column", "value": "680px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "启动主要操作，整页同一时刻只保留一个明确主入口。",
+      "html": "<button class=\"ds-button-primary\">开始</button>",
+      "css": ".ds-button-primary { border: 0; border-radius: var(--radius-sm, 8px); background: var(--accent, #087e78); color: #fff; padding: 11px 18px; font: 680 14px/1.4 'Segoe UI', sans-serif; transition: background-color 150ms ease, transform 150ms ease; } .ds-button-primary:hover { background: var(--accent-strong, #05645f); } .ds-button-primary:active { transform: translateY(1px); } .ds-button-primary:focus-visible { outline: 3px solid rgba(8,126,120,.24); outline-offset: 3px; }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "description": "用于次操作和非破坏性辅助动作。",
+      "html": "<button class=\"ds-button-secondary\">打开</button>",
+      "css": ".ds-button-secondary { border: 0; border-radius: var(--radius-sm, 8px); background: var(--accent-soft, #e6f3f1); color: var(--accent-strong, #05645f); padding: 11px 18px; font: 680 14px/1.4 'Segoe UI', sans-serif; transition: background-color 150ms ease, transform 150ms ease; } .ds-button-secondary:hover { background: #d8ece9; } .ds-button-secondary:active { transform: translateY(1px); } .ds-button-secondary:focus-visible { outline: 3px solid rgba(8,126,120,.24); outline-offset: 3px; }"
+    },
+    {
+      "name": "Public Link Field",
+      "kind": "input",
+      "description": "接收五个平台的公开内容链接。",
+      "html": "<input class=\"ds-input\" type=\"url\" placeholder=\"粘贴公开内容链接\">",
+      "css": ".ds-input { width: 100%; border: 1px solid var(--line, #dce3e6); border-radius: var(--radius-sm, 8px); background: #fff; color: var(--ink, #17233a); padding: 12px 13px; font: 400 14px/1.5 'Segoe UI', sans-serif; } .ds-input:focus { border-color: var(--accent, #087e78); outline: 0; box-shadow: 0 0 0 3px rgba(8,126,120,.12); } .ds-input::placeholder { color: #7a8695; }"
+    },
+    {
+      "name": "Active Navigation",
+      "kind": "nav",
+      "refersTo": "navigation-active",
+      "description": "标记当前工作区位置。",
+      "html": "<a class=\"ds-nav-active\" href=\"#\">粘贴链接</a>",
+      "css": ".ds-nav-active { display: flex; min-height: 42px; align-items: center; border-radius: var(--radius-sm, 8px); background: var(--accent-soft, #e6f3f1); color: var(--accent-strong, #05645f); padding: 0 12px; font: 700 13px/1.4 'Segoe UI', sans-serif; text-decoration: none; } .ds-nav-active:hover { background: #d8ece9; } .ds-nav-active:focus-visible { outline: 3px solid rgba(8,126,120,.24); outline-offset: 3px; }"
+    },
+    {
+      "name": "Task Index Row",
+      "kind": "custom",
+      "description": "以标题、说明和动词组织一个可执行任务。",
+      "html": "<a class=\"ds-task-row\" href=\"#\"><span><strong>粘贴新链接</strong><small>粘贴文章或视频链接，自动提取重点。</small></span><b>开始</b></a>",
+      "css": ".ds-task-row { display: grid; grid-template-columns: 1fr auto; gap: 20px; align-items: center; min-height: 96px; border-radius: var(--radius-sm, 8px); background: #f0f8f7; color: var(--ink, #17233a); padding: 18px; text-decoration: none; transition: background-color 150ms ease, transform 150ms ease; } .ds-task-row span { display: grid; gap: 6px; } .ds-task-row strong { font: 700 16px/1.4 'Segoe UI', sans-serif; } .ds-task-row small { color: var(--ink-soft, #637083); font: 400 13px/1.55 'Segoe UI', sans-serif; } .ds-task-row b { border-radius: 999px; background: var(--accent, #087e78); color: #fff; padding: 7px 12px; font: 700 12px/1.3 'Segoe UI', sans-serif; } .ds-task-row:hover { background: #e8f4f2; } .ds-task-row:active { transform: translateY(1px); } .ds-task-row:focus-visible { outline: 3px solid rgba(8,126,120,.24); outline-offset: 3px; }"
+    },
+    {
+      "name": "Workspace Panel",
+      "kind": "card",
+      "refersTo": "surface-panel",
+      "description": "承载一个主要任务分组，内部优先用分隔和留白。",
+      "html": "<section class=\"ds-panel\"><h2>采集内容</h2><p>选择最适合当前资料的入口。</p></section>",
+      "css": ".ds-panel { border-radius: var(--radius-md, 12px); background: var(--surface, #fff); color: var(--ink, #17233a); padding: 24px 26px; box-shadow: 0 12px 32px rgba(32,52,65,.06); } .ds-panel h2 { margin: 0; font: 720 18px/1.35 'Segoe UI', sans-serif; } .ds-panel p { margin: 6px 0 0; color: var(--ink-soft, #637083); font: 400 13px/1.55 'Segoe UI', sans-serif; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "科研索引台",
+    "overview": "界面像一张可靠的科研资料工作台：任务入口按研究工作顺序排列，状态明确，装饰克制。视觉服务于采集、提炼、确认和归档，不把操作型产品包装成营销首页。系统采用中等偏高的信息密度，青绿色只标记当前导航、主操作和真实状态。",
+    "keyCharacteristics": [
+      "稳定的左侧导航和清晰的主任务区",
+      "以索引行和分隔组织信息，避免等权卡片陈列",
+      "仅使用一种青绿色强调色",
+      "固定字号层级和短促状态动效",
+      "小屏切换为顶部横向导航和单列内容"
+    ],
+    "rules": [
+      { "name": "The One Accent Rule", "body": "青绿色只表达当前、可执行或真实状态；普通说明和非活动区域保持中性。", "section": "colors" },
+      { "name": "The Fixed Product Scale Rule", "body": "操作页面使用固定字号层级；响应式变化来自结构重排，而不是连续缩放标题。", "section": "typography" },
+      { "name": "The Quiet Depth Rule", "body": "同一容器只选择阴影或明显边框作为主要深度信号，不叠加发光和硬投影。", "section": "elevation" }
+    ],
+    "dos": [
+      "Do 先突出当前最可能执行的任务，再展示解释和工具。",
+      "Do 用接近关系和单条分隔线组织同类动作。",
+      "Do 为 hover、focus、active、disabled、error 和真实状态提供明确反馈。",
+      "Do 在窄屏保持 DOM 顺序与视觉任务顺序一致。"
+    ],
+    "donts": [
+      "Don't 把所有功能做成同等大小的营销卡片。",
+      "Don't 添加没有真实数据来源的指标、进度或活跃度。",
+      "Don't 用第二种强调色装饰普通区域。",
+      "Don't 为操作型页面添加展示字体、渐变文字或无目的入场动画。"
+    ]
+  }
+}

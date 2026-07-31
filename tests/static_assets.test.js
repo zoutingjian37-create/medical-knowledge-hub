@@ -5,6 +5,7 @@ const test = require("node:test");
 
 const apiClientPath = path.join(__dirname, "..", "static", "js", "api-client.js");
 const appShellPath = path.join(__dirname, "..", "static", "js", "app-shell.js");
+const appCssPath = path.join(__dirname, "..", "static", "css", "app.css");
 
 function loadApiClient(fetchImplementation) {
     global.window = global;
@@ -42,6 +43,49 @@ test("app shell uses short action-oriented module names", () => {
     }
     assert.match(html, /href="\/inbox\.html"[^>]*aria-current="page"/);
     assert.doesNotMatch(html, /login\.html|rss\.html|blacklist\.html/);
+});
+
+test("shared stylesheet renders an operational responsive workspace", () => {
+    const css = fs.readFileSync(appCssPath, "utf8");
+
+    for (const selector of [
+        "body",
+        ".page-shell",
+        ".workspace-header",
+        ".workspace-grid",
+        ".action-list",
+        ".action-row",
+        ".action-row:hover",
+        ".workflow-list",
+        ".page-footer",
+    ]) {
+        assert.match(css, new RegExp(selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\s*\\{"));
+    }
+    assert.match(css, /@media\s*\(max-width:\s*680px\)/);
+    assert.match(css, /prefers-reduced-motion/);
+});
+
+test("dashboard follows the real collect-review-archive task path", () => {
+    const html = fs.readFileSync(path.join(__dirname, "..", "static", "admin.html"), "utf8");
+
+    assert.match(html, /class="workspace-header"/);
+    assert.match(html, /class="action-list"/);
+    assert.match(html, /class="workflow-list"/);
+    assert.match(html, /粘贴新链接/);
+    assert.match(html, /采集.*提炼.*确认.*Obsidian/s);
+    assert.doesNotMatch(html, /card-grid|card__number|START HERE/);
+});
+
+test("application shell uses a persistent desktop navigation rail", () => {
+    global.window = global;
+    global.document = { readyState: "loading", addEventListener() {} };
+    delete require.cache[require.resolve(appShellPath)];
+    require(appShellPath);
+
+    const html = global.ContentHubShell.render("/admin.html");
+    assert.match(html, /^<aside class="app-shell"/);
+    assert.match(html, /app-shell__nav-label/);
+    assert.match(html, /app-shell__brand-copy/);
 });
 
 test("manual inbox queues any supported public link for knowledge distillation", () => {
