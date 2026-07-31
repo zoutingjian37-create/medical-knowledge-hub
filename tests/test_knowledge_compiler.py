@@ -94,7 +94,7 @@ class KnowledgeCompilerTests(unittest.TestCase):
         result = self._compiler().prepare_handoff(self.job.id)
 
         handoff = result.handoff_path.read_text("utf-8")
-        self.assertIn("$distill-medical-wechat", handoff)
+        self.assertIn("$distill-medical-literature", handoff)
         self.assertIn(SOURCE_URL, handoff)
         self.assertNotIn("只允许临时保存的清洗后正文", handoff)
         self.assertIn(result.mode, {"desktop", "cli"})

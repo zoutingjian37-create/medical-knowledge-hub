@@ -11,7 +11,7 @@
   → 自动识别平台
   → OpenCLI 提取正文或字幕
   → 去广告并创建临时任务
-  → Codex + distill-medical-wechat 提炼
+  → Codex + distill-medical-literature 提炼
   → 用户查看变更预览
   → 确认后写入 Obsidian
   → 删除临时正文
@@ -98,7 +98,7 @@ node --test tests\static_assets.test.js
 ### Codex 无法生成预览
 
 - 确认 Codex CLI 已登录。
-- 检查 `CONTENT_HUB_CODEX_CLI` 和 `distill-medical-wechat` Skill。
+- 检查 `CONTENT_HUB_CODEX_CLI` 和 `distill-medical-literature` Skill。
 
 ### 无法保存到 Obsidian
 

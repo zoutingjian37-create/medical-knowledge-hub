@@ -20,7 +20,7 @@
   → 平台无关 MarkdownDocument
   → 广告清理与去重
   → pending
-  → 本机 Codex CLI + distill-medical-wechat
+  → 本机 Codex CLI + distill-medical-literature
   → preview_ready
   → 用户查看
      ├─ approve → Obsidian 证据卡/Wiki/日志 → 删除缓存
@@ -85,7 +85,7 @@ Invoke-RestMethod http://127.0.0.1:5000/api/ext/platforms
 - `extensions/processing/job_queue.py`：广告清理、去重与入队。
 - `extensions/processing/compiler.py`：Codex 预览、路径校验和确认写入。
 - `static/inbox.html`：五平台手动链接 UI。
-- `skills/distill-medical-wechat/`：可复用知识提炼契约。
+- `skills/distill-medical-literature/`：可复用医学文献提炼契约。
 
 ## 常见失败的定位顺序
 

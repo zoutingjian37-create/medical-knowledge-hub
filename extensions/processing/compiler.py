@@ -78,7 +78,7 @@ class KnowledgeCompiler:
         wiki_pages = _wiki_page_list()
         handoff = (
             "# Medical Knowledge Hub 提炼任务\n\n"
-            "使用 `$distill-medical-wechat` 处理本任务。\n\n"
+            "使用 `$distill-medical-literature` 处理本任务。\n\n"
             f"- 任务编号：`{job.id}`\n"
             f"- 原文链接：{job.source_url}\n"
             f"- 标题：{job.title}\n"
@@ -94,7 +94,7 @@ class KnowledgeCompiler:
         self.store.update(job_id, status="handoff_ready")
         mode = "cli" if _codex_cli_available() else "desktop"
         instruction = (
-            "请使用 $distill-medical-wechat 处理这个任务文件并把结果写到其中指定的预览位置："
+            "请使用 $distill-medical-literature 处理这个任务文件并把结果写到其中指定的预览位置："
             f"{handoff_path}"
         )
         return HandoffResult(mode, instruction, handoff_path, output_path)

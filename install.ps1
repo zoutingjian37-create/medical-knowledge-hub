@@ -36,9 +36,9 @@ if (-not $SkipWeChatDiscovery) {
     & $AppPython -m pip install --disable-pip-version-check -r (Join-Path $ResolvedInstall "requirements-wechat-ui.txt")
 }
 
-$SkillSource = Join-Path $ResolvedInstall "skills\distill-medical-wechat"
+$SkillSource = Join-Path $ResolvedInstall "skills\distill-medical-literature"
 $CodexSkills = Join-Path $env:USERPROFILE ".codex\skills"
-$SkillDestination = Join-Path $CodexSkills "distill-medical-wechat"
+$SkillDestination = Join-Path $CodexSkills "distill-medical-literature"
 New-Item -ItemType Directory -Path $SkillDestination -Force | Out-Null
 Copy-Item -Path (Join-Path $SkillSource "*") -Destination $SkillDestination -Recurse -Force
 

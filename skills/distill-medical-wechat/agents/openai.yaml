@@ -1,4 +1,0 @@
-interface:
-  display_name: "医学多平台内容知识提炼"
-  short_description: "提炼医学内容中的研究结论、创新方法与可迁移科研选题"
-  default_prompt: "使用 $distill-medical-wechat 提炼这条医学公开内容并生成知识库变更预览。"

@@ -12,7 +12,7 @@ class WindowsPackagingTests(unittest.TestCase):
         manifest = build_manifest(ROOT)
 
         self.assertIn("app.py", manifest)
-        self.assertIn("skills/distill-medical-wechat/SKILL.md", manifest)
+        self.assertIn("skills/distill-medical-literature/SKILL.md", manifest)
         self.assertIn("install.ps1", manifest)
         self.assertIn("launch.ps1", manifest)
         self.assertIn("Dockerfile", manifest)
@@ -30,7 +30,7 @@ class WindowsPackagingTests(unittest.TestCase):
 
         self.assertIn(r"D:\Codex\medical-knowledge-hub", installer)
         self.assertIn(r"D:\Codex\venvs\medical-knowledge-hub", installer)
-        self.assertIn("distill-medical-wechat", installer)
+        self.assertIn("distill-medical-literature", installer)
         self.assertIn("CreateShortcut", installer)
         self.assertIn("start.bat", installer)
         self.assertIn("$Shortcut.TargetPath = $Launcher", installer)

@@ -20,7 +20,7 @@ class CleanRepositoryContractTests(unittest.TestCase):
             "routes_ext/knowledge.py",
             "static/inbox.html",
             "static/review.html",
-            "skills/distill-medical-wechat/SKILL.md",
+            "skills/distill-medical-literature/SKILL.md",
         )
 
         missing = [path for path in required if not (ROOT / path).is_file()]
