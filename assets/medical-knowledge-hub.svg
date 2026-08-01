@@ -1,10 +1,15 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
   <title id="title">Medical Knowledge Hub</title>
-  <desc id="desc">墨蓝文献与青绿色归档标记</desc>
+  <desc id="desc">开放书本与位于知识交汇处的医疗中心标记</desc>
   <rect x="16" y="16" width="224" height="224" rx="52" fill="#F9FBFB" stroke="#DCE3E6" stroke-width="4"/>
-  <path d="M72 54h73l29 29v75H72V54Z" fill="none" stroke="#17233A" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M145 55v30h28" fill="none" stroke="#17233A" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M94 105h48M94 132h39" fill="none" stroke="#17233A" stroke-width="11" stroke-linecap="round"/>
-  <rect x="107" y="143" width="90" height="71" rx="16" fill="#087E78"/>
-  <path d="M152 158v31m-13-13 13 13 13-13M130 200h44" fill="none" stroke="#F9FBFB" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+  <g id="knowledge-book" fill="#FFFFFF" stroke="#17233A" stroke-width="11" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M42 76c31-10 62-5 86 13v109c-24-17-55-22-86-12V76Z"/>
+    <path d="M214 76c-31-10-62-5-86 13v109c24-17 55-22 86-12V76Z"/>
+    <path d="M128 89v109" fill="none"/>
+    <path d="M65 119c17-2 32 1 44 7M65 146c17-2 32 1 44 7M191 119c-17-2-32 1-44 7M191 146c-17-2-32 1-44 7" fill="none" stroke-width="8"/>
+  </g>
+  <g id="medical-hub">
+    <circle cx="128" cy="82" r="33" fill="#087E78" stroke="#F9FBFB" stroke-width="8"/>
+    <path d="M128 63v38M109 82h38" fill="none" stroke="#FFFFFF" stroke-width="11" stroke-linecap="round"/>
+  </g>
 </svg>

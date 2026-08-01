@@ -36,52 +36,54 @@ def build_master() -> Image.Image:
         width=4 * SCALE,
     )
 
-    document = [
-        scaled_point(72, 54),
-        scaled_point(145, 54),
-        scaled_point(174, 83),
-        scaled_point(174, 158),
-        scaled_point(72, 158),
-        scaled_point(72, 54),
+    left_page = [
+        scaled_point(42, 76), scaled_point(65, 70), scaled_point(91, 73),
+        scaled_point(110, 80), scaled_point(128, 89), scaled_point(128, 198),
+        scaled_point(107, 188), scaled_point(84, 182), scaled_point(62, 182),
+        scaled_point(42, 186), scaled_point(42, 76),
     ]
-    draw.line(document, fill=INK, width=13 * SCALE, joint="curve")
+    right_page = [
+        scaled_point(214, 76), scaled_point(191, 70), scaled_point(165, 73),
+        scaled_point(146, 80), scaled_point(128, 89), scaled_point(128, 198),
+        scaled_point(149, 188), scaled_point(172, 182), scaled_point(194, 182),
+        scaled_point(214, 186), scaled_point(214, 76),
+    ]
+    draw.polygon(left_page, fill="#FFFFFF")
+    draw.polygon(right_page, fill="#FFFFFF")
+    draw.line(left_page, fill=INK, width=11 * SCALE, joint="curve")
+    draw.line(right_page, fill=INK, width=11 * SCALE, joint="curve")
     draw.line(
-        [scaled_point(145, 55), scaled_point(145, 85), scaled_point(173, 85)],
-        fill=INK,
-        width=13 * SCALE,
-        joint="curve",
-    )
-    draw.line(
-        [scaled_point(94, 105), scaled_point(142, 105)],
-        fill=INK,
-        width=11 * SCALE,
-    )
-    draw.line(
-        [scaled_point(94, 132), scaled_point(133, 132)],
+        [scaled_point(128, 89), scaled_point(128, 198)],
         fill=INK,
         width=11 * SCALE,
     )
+    for start, end in (
+        ((65, 119), (109, 126)), ((65, 146), (109, 153)),
+        ((191, 119), (147, 126)), ((191, 146), (147, 153)),
+    ):
+        draw.line(
+            [scaled_point(*start), scaled_point(*end)],
+            fill=INK,
+            width=8 * SCALE,
+        )
 
-    draw.rounded_rectangle(
-        scaled_box(107, 143, 197, 214),
-        radius=16 * SCALE,
+    draw.ellipse(
+        scaled_box(91, 45, 165, 119),
+        fill=BACKGROUND,
+    )
+    draw.ellipse(
+        scaled_box(95, 49, 161, 115),
         fill=ACCENT,
     )
     draw.line(
-        [scaled_point(152, 158), scaled_point(152, 189)],
-        fill=BACKGROUND,
-        width=10 * SCALE,
+        [scaled_point(128, 63), scaled_point(128, 101)],
+        fill="#FFFFFF",
+        width=11 * SCALE,
     )
     draw.line(
-        [scaled_point(139, 176), scaled_point(152, 189), scaled_point(165, 176)],
-        fill=BACKGROUND,
-        width=10 * SCALE,
-        joint="curve",
-    )
-    draw.line(
-        [scaled_point(130, 200), scaled_point(174, 200)],
-        fill=BACKGROUND,
-        width=10 * SCALE,
+        [scaled_point(109, 82), scaled_point(147, 82)],
+        fill="#FFFFFF",
+        width=11 * SCALE,
     )
     return image
 

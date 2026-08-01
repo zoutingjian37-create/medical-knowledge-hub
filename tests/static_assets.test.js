@@ -161,6 +161,9 @@ test("wechat and literature subscriptions are separate operational modules", () 
     assert.match(literature, /RSS \/ Atom/);
     assert.match(literature, /PubMed \/ Europe PMC/);
     assert.match(literature, /Zotero/);
+    assert.match(literature, /登录学校或出版社账号/);
+    assert.match(literature, /已用 Zotero Connector 保存 PDF/);
+    assert.match(literature, /尚未检测到 Zotero PDF/);
     assert.match(literature, /scope:\s*['"]literature['"]/);
     assert.doesNotMatch(literature, /微信公众号|公众号名称|value=["']wechat_account["']/);
 

@@ -74,6 +74,13 @@ class WindowsPackagingTests(unittest.TestCase):
         self.assertEqual(b"\x00\x00\x01\x00", data[:4])
         self.assertGreaterEqual(int.from_bytes(data[4:6], "little"), 4)
 
+    def test_icon_visual_language_comes_from_the_product_name(self):
+        svg = (ROOT / "assets" / "medical-knowledge-hub.svg").read_text("utf-8")
+
+        self.assertIn('id="knowledge-book"', svg)
+        self.assertIn('id="medical-hub"', svg)
+        self.assertNotIn("linearGradient", svg)
+
     def test_optional_wechat_ui_dependency_is_not_duplicated(self):
         core = (ROOT / "requirements.txt").read_text("utf-8")
         optional = (ROOT / "requirements-wechat-ui.txt").read_text("utf-8")

@@ -131,7 +131,12 @@ class LiteraturePipeline:
             find_item_key = getattr(self.zotero, "find_item_key", None)
             if callable(find_item_key):
                 item_key = await find_item_key(item)
+                has_pdf_attachment = getattr(
+                    self.zotero, "has_pdf_attachment", None
+                )
                 ready = bool(item_key)
+                if ready and callable(has_pdf_attachment):
+                    ready = await has_pdf_attachment(item_key)
             else:
                 ready = await self.zotero.contains(item)
             if not ready and reason == "waiting_collection":

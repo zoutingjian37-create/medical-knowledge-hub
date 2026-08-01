@@ -291,6 +291,9 @@ class LiteraturePipelineTests(unittest.TestCase):
             async def find_item_key(self, item):
                 return "ITEM1"
 
+            async def has_pdf_attachment(self, item_key):
+                return item_key == "ITEM1"
+
             async def read_full_text(self, item_key):
                 self.read_key = item_key
                 return "Institutional full text methods and results."
@@ -346,6 +349,54 @@ class LiteraturePipelineTests(unittest.TestCase):
             self.assertIn("evidence_level: full_text", queue.document.markdown)
             self.assertIn("Institutional full text", queue.document.markdown)
             self.assertEqual([], json_files(root / "login-handoffs"))
+
+    def test_continue_login_keeps_waiting_when_zotero_has_only_metadata(self):
+        from extensions.subscriptions.discovery import LiteratureItem
+        from extensions.subscriptions.pipeline import LiteraturePipeline
+        from extensions.subscriptions.runs import LiteratureRunStore
+
+        item = LiteratureItem(
+            title="Restricted study without attachment",
+            url="https://publisher.example/article/metadata-only",
+            doi="10.1000/metadata-only",
+            abstract="Abstract only.",
+            open_access=False,
+        )
+
+        class Discoverer:
+            async def discover(self, subscription):
+                return (item,)
+
+        class Zotero:
+            async def save(self, item, collection):
+                return {"status": "waiting_school_login", "url": item.url}
+
+            async def find_item_key(self, item):
+                return "ITEM-WITHOUT-PDF"
+
+            async def has_pdf_attachment(self, item_key):
+                return False
+
+        class Queue:
+            def enqueue(self, document, platform="literature"):
+                raise AssertionError("metadata alone must not resume distillation")
+
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            subscription = self._subscription(root, keywords=())
+            pipeline = LiteraturePipeline(
+                discoverer=Discoverer(),
+                zotero=Zotero(),
+                queue=Queue(),
+                compiler=None,
+                run_store=LiteratureRunStore(root),
+                state_root=root,
+            )
+            waiting = asyncio.run(pipeline.run(subscription))
+            resumed = asyncio.run(pipeline.continue_login(waiting.id, subscription))
+
+            self.assertEqual("waiting_school_login", resumed.status)
+            self.assertEqual(1, len(json_files(root / "login-handoffs")))
 
 
 class ZoteroGatewayTests(unittest.TestCase):
@@ -522,6 +573,58 @@ class ZoteroGatewayTests(unittest.TestCase):
 
         content = asyncio.run(ZoteroGateway(client=Transport()).read_full_text("ITEM1"))
         self.assertEqual("Indexed methods and results.", content)
+
+    def test_managed_pdf_attachment_is_required_after_school_login(self):
+        from extensions.subscriptions.zotero import ZoteroGateway
+
+        class Response:
+            status_code = 200
+
+            def __init__(self, payload):
+                self.payload = payload
+
+            def raise_for_status(self):
+                return None
+
+            def json(self):
+                return self.payload
+
+        class Transport:
+            async def get(self, url, **kwargs):
+                return Response(
+                    [
+                        {
+                            "key": "WEB1",
+                            "data": {
+                                "itemType": "attachment",
+                                "contentType": "text/html",
+                                "linkMode": "imported_url",
+                            },
+                        },
+                        {
+                            "key": "LINK1",
+                            "data": {
+                                "itemType": "attachment",
+                                "contentType": "application/pdf",
+                                "linkMode": "linked_url",
+                            },
+                        },
+                        {
+                            "key": "PDF1",
+                            "data": {
+                                "itemType": "attachment",
+                                "contentType": "application/pdf",
+                                "linkMode": "imported_url",
+                            },
+                        },
+                    ]
+                )
+
+        ready = asyncio.run(
+            ZoteroGateway(client=Transport()).has_pdf_attachment("ITEM1")
+        )
+
+        self.assertTrue(ready)
 
     def test_doi_detection_uses_everything_search_after_connector_save(self):
         from extensions.subscriptions.discovery import LiteratureItem

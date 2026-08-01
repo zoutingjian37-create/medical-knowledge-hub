@@ -98,7 +98,7 @@ Invoke-RestMethod http://127.0.0.1:5000/api/ext/zotero/status
 4. 检查运行状态依次经过发现、过滤、Zotero 保存、提炼并停在 `waiting_confirmation`。
 5. Zotero 必须有题录；有开放 PDF 时附件的 `linkMode` 应为 `imported_url`/导入附件，而不是 `linked_url`。预览的 `evidence_level` 必须反映真实输入层级；PDF 失败必须在运行记录给出原因。
 6. 确认前 Vault 不得出现新文件。只有用户在“查看与保存”中批准后才能归档。
-7. 对一篇需要权限的文献验证 `waiting_school_login`：软件打开出版社页面，用户自行登录并点 Connector，随后“继续”按 DOI 检测入库。
+7. 对一篇需要权限的文献验证 `waiting_school_login`：软件打开出版社页面，用户自行登录并点 Connector；随后“继续”必须同时检测到 DOI/PMID 题录和 Zotero 受管理 PDF 附件。只有题录时不得进入提炼。
 8. 关闭总开关后计划任务不得自动处理；暂停单条订阅生效；删除订阅不得删除已有 Zotero 或 Obsidian 内容。
 9. 在公众号订阅文本框中修改并保存虚构测试号；确认个人配置只写入项目外的 `CONTENT_HUB_STATE_DIR`，仓库仍为空白默认值。
 

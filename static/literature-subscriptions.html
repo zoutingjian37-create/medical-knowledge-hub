@@ -118,7 +118,7 @@
         const relevant = runs.filter(run => ids.has(run.subscription_id)).slice(0, 8);
         runsContainer.innerHTML = relevant.map(run => {
             const login = run.status === "waiting_school_login"
-                ? `<div class="run-actions"><button class="secondary" type="button" onclick="openHandoff('${run.id}')">打开登录页面</button><button class="primary" type="button" onclick="continueLogin('${run.id}')">已保存到 Zotero，继续</button></div>`
+                ? `<p class="run-help">请先登录学校或出版社账号，再点击浏览器中的 Zotero Connector 保存 PDF。</p><div class="run-actions"><button class="secondary" type="button" onclick="openHandoff('${run.id}')">打开登录页面</button><button class="primary" type="button" onclick="continueLogin('${run.id}')">已用 Zotero Connector 保存 PDF，继续</button></div>`
                 : "";
             const error = run.error ? `<p class="run-error">${escapeHtml(run.error)}</p>` : "";
             return `<div class="run-row"><strong>${escapeHtml(statusLabels[run.status] || run.status)}</strong><span>发现 ${run.discovered} 篇，入 Zotero ${run.saved_zotero} 篇，待确认 ${run.queued} 篇</span>${error}${login}</div>`;
@@ -188,7 +188,10 @@
         if (data.handoffs[0]) window.open(data.handoffs[0].open_url, "_blank", "noopener");
     };
     window.continueLogin = async function (id) {
-        await api.post("/api/ext/literature/runs/continue-login", { run_id: id });
+        const data = await api.post("/api/ext/literature/runs/continue-login", { run_id: id });
+        automationStatus.textContent = data.run.status === "waiting_school_login"
+            ? "尚未检测到 Zotero PDF，请确认登录后已点击 Connector 保存 PDF。"
+            : "已检测到 Zotero PDF，正在继续处理。";
         await load();
     };
 

@@ -270,6 +270,35 @@ class ZoteroGateway:
             return ""
         return ""
 
+    async def has_pdf_attachment(self, item_key: str) -> bool:
+        try:
+            response = await self._client.get(
+                f"{self._base_url}/api/users/0/items/{item_key}/children",
+                headers={"Zotero-API-Version": "3"},
+                timeout=5,
+            )
+            response.raise_for_status()
+            rows = response.json()
+        except (httpx.HTTPError, OSError, RuntimeError, ValueError):
+            return False
+        if not isinstance(rows, list):
+            return False
+        for row in rows:
+            data = row.get("data", {}) if isinstance(row, dict) else {}
+            if data.get("itemType") != "attachment":
+                continue
+            managed = str(data.get("linkMode") or "") in {
+                "imported_file",
+                "imported_url",
+            }
+            content_type = str(data.get("contentType") or "").casefold()
+            filename = str(data.get("filename") or "").casefold()
+            if managed and (
+                content_type == "application/pdf" or filename.endswith(".pdf")
+            ):
+                return True
+        return False
+
     async def wait_for_full_text(self, item_key: str, attempts: int = 5) -> str:
         for attempt in range(max(1, attempts)):
             content = await self.read_full_text(item_key)
