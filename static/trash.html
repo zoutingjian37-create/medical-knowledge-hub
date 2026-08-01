@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>回收站 - Medical Knowledge Hub</title>
+    <link rel="stylesheet" href="/static/css/app.css?v=20260801">
+</head>
+<body class="subscription-surface">
+<div id="app-shell"></div>
+<main class="page-shell subscription-page trash-page">
+    <header class="workspace-header">
+        <div>
+            <h1>回收站</h1>
+            <p>这里保存从待确认区删除的本地任务。保留期内可以恢复，永久删除后无法撤销。</p>
+        </div>
+    </header>
+
+    <section class="subscription-section trash-settings" aria-labelledby="trash-settings-title">
+        <header class="subscription-section__header">
+            <div>
+                <h2 id="trash-settings-title">自动清理</h2>
+                <p>默认保留 7 天，可设置 1-30 天。修改设置不会立即删除尚未到期的内容。</p>
+            </div>
+        </header>
+        <div class="subscription-section__body trash-settings-row">
+            <label class="field-label trash-retention">保留天数
+                <input id="retentionDays" type="number" min="1" max="30" value="7">
+            </label>
+            <button id="saveRetention" class="primary" type="button">保存设置</button>
+            <button id="purgeExpired" class="secondary" type="button">清理已到期内容</button>
+            <span id="trashStatus" class="status-line" role="status" aria-live="polite">正在读取回收站设置</span>
+        </div>
+        <p class="trash-safety-note">永久删除只清理本地任务、临时正文和预览，不会删除 Zotero 文献或已经写入 Obsidian 的内容。</p>
+    </section>
+
+    <section class="subscription-section trash-content" aria-labelledby="trash-list-title">
+        <header class="subscription-section__header trash-list-heading">
+            <div>
+                <h2 id="trash-list-title">已删除内容</h2>
+                <p>勾选后可以批量彻底清理；恢复后，内容会回到删除前的处理状态。</p>
+            </div>
+            <div class="trash-bulk-actions">
+                <label class="select-all-control">
+                    <input id="selectAllTrash" type="checkbox">
+                    <span>全选</span>
+                </label>
+                <span id="trashSelectionSummary" class="selection-summary">已选 0 项</span>
+                <button id="restoreSelected" class="secondary" type="button" disabled>恢复所选</button>
+                <button id="clearSelected" class="danger" type="button" disabled>彻底清理所选（0）</button>
+                <button id="refreshTrash" class="secondary" type="button">刷新</button>
+                <a class="text-action" href="/review.html">返回查看与保存</a>
+            </div>
+        </header>
+        <div id="trashList" class="trash-list" aria-live="polite"><p class="empty-state">正在读取回收站</p></div>
+    </section>
+</main>
+<script src="/static/js/api-client.js"></script>
+<script src="/static/js/app-shell.js"></script>
+<script>
+(function () {
+    "use strict";
+    const api = window.ContentHubAPI;
+    const list = document.getElementById("trashList");
+    const retention = document.getElementById("retentionDays");
+    const status = document.getElementById("trashStatus");
+    const selectAll = document.getElementById("selectAllTrash");
+    const clearSelected = document.getElementById("clearSelected");
+    const restoreSelected = document.getElementById("restoreSelected");
+    const selectionSummary = document.getElementById("trashSelectionSummary");
+    const selectedIds = new Set();
+    let visibleJobs = [];
+
+    function escapeHtml(value) {
+        const span = document.createElement("span");
+        span.textContent = String(value || "");
+        return span.innerHTML;
+    }
+
+    function readableDate(value) {
+        if (!value) return "删除时间未知";
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return value;
+        return new Intl.DateTimeFormat("zh-CN", {
+            year: "numeric", month: "2-digit", day: "2-digit",
+            hour: "2-digit", minute: "2-digit"
+        }).format(date);
+    }
+
+    function render(jobs) {
+        visibleJobs = jobs.slice().reverse();
+        selectedIds.clear();
+        list.innerHTML = visibleJobs.map(job => `
+            <article class="trash-item">
+                <label class="trash-item__selector" aria-label="选择 ${escapeHtml(job.title || "未命名内容")}">
+                    <input class="trash-checkbox" type="checkbox" value="${escapeHtml(job.id)}">
+                </label>
+                <div class="trash-item__copy">
+                    <h2>${escapeHtml(job.title || "未命名内容")}</h2>
+                    <p>${escapeHtml(job.author || job.platform || "未识别来源")}</p>
+                    <small>移入回收站：${escapeHtml(readableDate(job.deleted_at))}</small>
+                </div>
+            </article>`).join("") || '<p class="empty-state trash-empty">回收站是空的。</p>';
+        list.querySelectorAll(".trash-checkbox").forEach(control => {
+            control.addEventListener("change", () => {
+                if (control.checked) selectedIds.add(control.value);
+                else selectedIds.delete(control.value);
+                updateSelectionControls();
+            });
+        });
+        updateSelectionControls();
+    }
+
+    function updateSelectionControls() {
+        const total = visibleJobs.length;
+        const selected = selectedIds.size;
+        selectAll.checked = total > 0 && selected === total;
+        selectAll.indeterminate = selected > 0 && selected < total;
+        selectAll.disabled = total === 0;
+        clearSelected.disabled = selected === 0;
+        restoreSelected.disabled = selected === 0;
+        selectionSummary.textContent = `已选 ${selected} 项`;
+        clearSelected.textContent = `彻底清理所选（${selected}）`;
+    }
+
+    async function load() {
+        list.innerHTML = '<p class="empty-state">正在读取回收站</p>';
+        try {
+            const data = await api.get("/api/ext/knowledge/trash");
+            retention.value = String(data.retention_days || 7);
+            status.textContent = `当前保留 ${retention.value} 天，共 ${data.jobs.length} 项`;
+            render(data.jobs);
+        } catch (error) {
+            status.textContent = `读取失败：${error.message}`;
+            list.innerHTML = '<p class="error-state trash-empty">回收站读取失败，请刷新页面重试。</p>';
+        }
+    }
+
+    saveRetention.addEventListener("click", async () => {
+        saveRetention.disabled = true;
+        status.textContent = "正在保存回收站设置";
+        try {
+            const data = await api.put("/api/ext/knowledge/trash/settings", {
+                retention_days: Number(retention.value)
+            });
+            retention.value = String(data.retention_days);
+            status.textContent = `已设置为保留 ${data.retention_days} 天`;
+        } catch (error) {
+            status.textContent = `设置保存失败：${error.message}`;
+        } finally {
+            saveRetention.disabled = false;
+        }
+    });
+
+    purgeExpired.addEventListener("click", async () => {
+        purgeExpired.disabled = true;
+        status.textContent = "正在清理已到期内容";
+        try {
+            const data = await api.post("/api/ext/knowledge/trash/purge", {});
+            status.textContent = data.count ? `已永久删除 ${data.count} 项到期内容` : "没有已到期内容";
+            await load();
+        } catch (error) {
+            status.textContent = `清理失败：${error.message}`;
+        } finally {
+            purgeExpired.disabled = false;
+        }
+    });
+
+    selectAll.addEventListener("change", () => {
+        selectedIds.clear();
+        list.querySelectorAll(".trash-checkbox").forEach(control => {
+            control.checked = selectAll.checked;
+            if (control.checked) selectedIds.add(control.value);
+        });
+        updateSelectionControls();
+    });
+
+    clearSelected.addEventListener("click", async () => {
+        const jobIds = Array.from(selectedIds);
+        if (!jobIds.length) return;
+        if (!window.confirm(`将永久删除选中的 ${jobIds.length} 项，删除后无法恢复，是否继续？`)) return;
+        clearSelected.disabled = true;
+        status.textContent = `正在永久删除 ${jobIds.length} 项`;
+        try {
+            const data = await api.post("/api/ext/knowledge/trash/delete-selected", {
+                job_ids: jobIds
+            });
+            status.textContent = `已永久删除 ${data.count} 项`;
+            await load();
+        } catch (error) {
+            status.textContent = `批量清理失败：${error.message}`;
+            updateSelectionControls();
+        }
+    });
+
+    restoreSelected.addEventListener("click", async () => {
+        const jobIds = Array.from(selectedIds);
+        if (!jobIds.length) return;
+        restoreSelected.disabled = true;
+        status.textContent = `正在恢复 ${jobIds.length} 项`;
+        try {
+            const data = await api.post("/api/ext/knowledge/trash/restore-selected", {
+                job_ids: jobIds
+            });
+            status.textContent = `已恢复 ${data.count} 项`;
+            await load();
+        } catch (error) {
+            status.textContent = `批量恢复失败：${error.message}`;
+            updateSelectionControls();
+        }
+    });
+
+    refreshTrash.addEventListener("click", load);
+    load();
+}());
+</script>
+</body>
+</html>

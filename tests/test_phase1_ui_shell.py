@@ -9,7 +9,10 @@ ACTIVE_PAGES = (
     "/admin.html",
     "/inbox.html",
     "/wechat-collect.html",
+    "/wechat-subscriptions.html",
+    "/literature-subscriptions.html",
     "/review.html",
+    "/trash.html",
     "/platforms.html",
 )
 RETIRED_PAGES = (
@@ -37,7 +40,7 @@ class UiShellTests(unittest.TestCase):
             with self.subTest(path=path):
                 response = self.client.get(path)
                 self.assertEqual(200, response.status_code)
-                self.assertIn('href="/static/css/app.css"', response.text)
+                self.assertIn('href="/static/css/app.css', response.text)
                 self.assertIn('src="/static/js/api-client.js"', response.text)
                 self.assertIn('src="/static/js/app-shell.js"', response.text)
 

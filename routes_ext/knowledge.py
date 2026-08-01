@@ -27,6 +27,10 @@ class TrashSettingsRequest(BaseModel):
     retention_days: int = Field(ge=1, le=30)
 
 
+class TrashSelectionRequest(BaseModel):
+    job_ids: list[str] = Field(min_length=1, max_length=500)
+
+
 class KnowledgeSettingsRequest(BaseModel):
     auto_distill: bool
 
@@ -53,6 +57,78 @@ async def list_knowledge_trash():
 async def update_trash_settings(request: TrashSettingsRequest):
     retention = KnowledgeJobStore().set_trash_retention_days(request.retention_days)
     return {"retention_days": retention}
+
+
+@router.post("/knowledge/trash/purge", summary="Permanently delete expired recycled jobs")
+async def purge_expired_knowledge_trash():
+    deleted = KnowledgeCompiler().purge_expired_trash()
+    return {"deleted": list(deleted), "count": len(deleted)}
+
+
+@router.post(
+    "/knowledge/trash/delete-selected",
+    summary="Permanently delete selected local recycled jobs",
+)
+async def delete_selected_knowledge_trash(request: TrashSelectionRequest):
+    compiler = KnowledgeCompiler()
+    try:
+        deleted = compiler.delete_permanently_many(request.job_ids)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except PreviewValidationError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return {"deleted": list(deleted), "count": len(deleted)}
+
+
+@router.post(
+    "/knowledge/trash/restore-selected",
+    summary="Restore selected jobs from the local recycle bin",
+)
+async def restore_selected_knowledge_trash(request: TrashSelectionRequest):
+    compiler = KnowledgeCompiler()
+    try:
+        restored = compiler.restore_many(request.job_ids)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except PreviewValidationError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return {"jobs": [_public_job(job) for job in restored], "count": len(restored)}
+
+
+@router.post(
+    "/knowledge/jobs/trash-selected",
+    summary="Move selected active jobs to the local recycle bin",
+)
+async def trash_selected_knowledge_jobs(request: TrashSelectionRequest):
+    compiler = KnowledgeCompiler()
+    try:
+        trashed = compiler.trash_many(request.job_ids)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except PreviewValidationError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return {"jobs": [_public_job(job) for job in trashed], "count": len(trashed)}
+
+
+@router.post(
+    "/knowledge/jobs/approve-selected",
+    summary="Apply selected reviewed previews to Obsidian",
+)
+async def approve_selected_knowledge_jobs(request: TrashSelectionRequest):
+    vault = os.getenv("OBSIDIAN_VAULT_PATH", "").strip()
+    if not vault:
+        raise HTTPException(status_code=409, detail="Obsidian Vault is not configured")
+    compiler = KnowledgeCompiler()
+    try:
+        results = compiler.approve_many(request.job_ids, Path(vault))
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except (FileNotFoundError, PreviewValidationError) as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return {
+        "count": len(results),
+        "knowledge_cards": [str(result.knowledge_card) for result in results],
+    }
 
 
 @router.get("/knowledge/settings", summary="Read local knowledge workflow settings")

@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>文献订阅 - Medical Knowledge Hub</title>
+    <link rel="stylesheet" href="/static/css/app.css?v=20260801">
+</head>
+<body class="subscription-surface">
+<div id="app-shell"></div>
+<main class="page-shell subscription-page">
+    <header class="workspace-header">
+        <div>
+            <h1>文献订阅</h1>
+            <p>通过期刊 RSS 或医学检索发现文献，保存到 Zotero，提炼后确认写入 Obsidian。</p>
+        </div>
+    </header>
+
+    <div class="subscription-layout">
+        <section class="subscription-section subscription-section--main" aria-labelledby="literature-form-title">
+            <header class="subscription-section__header">
+                <div>
+                    <h2 id="literature-form-title">新增文献订阅</h2>
+                    <p>有 RSS 时优先填写 RSS。没有 RSS 时使用 PubMed 或 Europe PMC 查询。</p>
+                </div>
+            </header>
+            <form id="literatureForm" class="subscription-form subscription-section__body">
+                <label class="field-label">订阅方式
+                    <select id="kind">
+                        <option value="feed">RSS / Atom</option>
+                        <option value="journal">目标期刊</option>
+                        <option value="literature_query">文献检索</option>
+                    </select>
+                </label>
+                <label class="field-label">名称<input id="name" required placeholder="例如：目标期刊或研究主题"></label>
+                <label class="field-label wide">RSS 或期刊主页<input id="source" placeholder="https://example.org/rss.xml"></label>
+                <label class="field-label wide">PubMed / Europe PMC 查询<input id="query" placeholder="例如：target trial emulation"></label>
+                <label class="field-label wide">关键词（逗号分隔）<input id="keywords" placeholder="cardiovascular, causal inference"></label>
+                <label class="field-label wide">提炼要求<textarea id="requirement" rows="4" placeholder="只保留高质量医学研究，关注可迁移的统计方法与创新点"></textarea></label>
+                <label class="field-label">每日上限<input id="dailyLimit" type="number" min="1" max="100" value="5"></label>
+                <label class="field-label">Zotero 目录<input id="collection" placeholder="默认使用订阅名称"></label>
+                <button class="primary wide" type="submit">保存文献订阅</button>
+                <span id="formStatus" class="status-line wide" role="status" aria-live="polite"></span>
+            </form>
+
+            <div class="saved-subscriptions">
+                <div class="saved-subscriptions__heading">
+                    <h2>已保存的文献订阅</h2>
+                    <button id="runLiterature" class="secondary" type="button">立即运行全部</button>
+                </div>
+                <div id="literatureList" class="subscription-list" aria-live="polite"><p class="empty-state">正在读取文献订阅</p></div>
+            </div>
+        </section>
+
+        <aside class="subscription-section" aria-labelledby="literature-automation-title">
+            <header class="subscription-section__header">
+                <div>
+                    <h2 id="literature-automation-title">每日运行</h2>
+                    <p>本机统一计划会处理所有已启用订阅，关闭后仍可手动运行。</p>
+                </div>
+            </header>
+            <div class="subscription-section__body automation-form">
+                <label class="toggle-field"><input id="automationEnabled" type="checkbox"> 开启每日自动运行</label>
+                <label class="field-label">执行时间<input id="runTime" type="time" value="08:30"></label>
+                <label class="field-label">每日提炼上限<input id="globalLimit" type="number" min="1" max="100" value="5"></label>
+                <button id="saveAutomation" class="secondary" type="button">保存运行设置</button>
+                <span id="automationStatus" class="status-line" role="status" aria-live="polite"></span>
+                <div id="zotero" class="integration-status">正在检查 Zotero</div>
+            </div>
+            <div class="run-section">
+                <h2>文献运行记录</h2>
+                <div id="literatureRuns" class="run-list" aria-live="polite"><p class="empty-state">正在读取运行记录</p></div>
+            </div>
+        </aside>
+    </div>
+</main>
+<script src="/static/js/api-client.js"></script>
+<script src="/static/js/app-shell.js"></script>
+<script>
+(function () {
+    "use strict";
+    const api = window.ContentHubAPI;
+    const list = document.getElementById("literatureList");
+    const runsContainer = document.getElementById("literatureRuns");
+    const kindLabels = { journal: "目标期刊", feed: "RSS / Atom", literature_query: "文献检索" };
+    const statusLabels = {
+        discovering: "正在发现",
+        filtered: "已过滤",
+        saved_zotero: "已存 Zotero",
+        waiting_school_login: "等待学校登录",
+        distilling: "正在提炼",
+        waiting_confirmation: "等待确认",
+        completed: "已完成",
+        failed: "失败"
+    };
+    let subscriptions = [];
+
+    function escapeHtml(value) {
+        const span = document.createElement("span");
+        span.textContent = String(value || "");
+        return span.innerHTML;
+    }
+
+    function renderSubscriptions() {
+        list.innerHTML = subscriptions.map(item => `
+            <div class="subscription-item">
+                <span class="subscription-item__copy"><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(kindLabels[item.kind] || item.kind)}，每日最多 ${item.daily_limit} 篇${item.enabled ? "" : "，已暂停"}</small></span>
+                <span class="subscription-actions">
+                    <button class="secondary" type="button" onclick="runOne('${item.id}')">立即运行</button>
+                    <button class="secondary" type="button" onclick="toggleOne('${item.id}', ${!item.enabled})">${item.enabled ? "暂停" : "恢复"}</button>
+                    <button class="danger" type="button" onclick="removeOne('${item.id}')">删除</button>
+                </span>
+            </div>`).join("") || '<p class="empty-state">还没有文献订阅。请先填写上面的表单。</p>';
+    }
+
+    function renderRuns(runs) {
+        const ids = new Set(subscriptions.map(item => item.id));
+        const relevant = runs.filter(run => ids.has(run.subscription_id)).slice(0, 8);
+        runsContainer.innerHTML = relevant.map(run => {
+            const login = run.status === "waiting_school_login"
+                ? `<div class="run-actions"><button class="secondary" type="button" onclick="openHandoff('${run.id}')">打开登录页面</button><button class="primary" type="button" onclick="continueLogin('${run.id}')">已保存到 Zotero，继续</button></div>`
+                : "";
+            const error = run.error ? `<p class="run-error">${escapeHtml(run.error)}</p>` : "";
+            return `<div class="run-row"><strong>${escapeHtml(statusLabels[run.status] || run.status)}</strong><span>发现 ${run.discovered} 篇，入 Zotero ${run.saved_zotero} 篇，待确认 ${run.queued} 篇</span>${error}${login}</div>`;
+        }).join("") || '<p class="empty-state">还没有文献运行记录。</p>';
+    }
+
+    async function load() {
+        try {
+            const [subscriptionData, automationData, runData] = await Promise.all([
+                api.get("/api/ext/subscriptions"),
+                api.get("/api/ext/automation"),
+                api.get("/api/ext/literature/runs")
+            ]);
+            subscriptions = subscriptionData.subscriptions.filter(item => item.kind !== "wechat_account");
+            automationEnabled.checked = automationData.automation.enabled;
+            runTime.value = automationData.automation.run_time;
+            globalLimit.value = automationData.automation.daily_limit;
+            renderSubscriptions();
+            renderRuns(runData.runs);
+        } catch (error) {
+            list.innerHTML = '<p class="error-state">文献订阅读取失败，请刷新页面重试。</p>';
+            runsContainer.innerHTML = '<p class="error-state">运行记录读取失败，请刷新页面重试。</p>';
+        }
+    }
+
+    literatureForm.addEventListener("submit", async event => {
+        event.preventDefault();
+        const submit = event.submitter;
+        submit.disabled = true;
+        formStatus.textContent = "正在保存文献订阅";
+        try {
+            await api.post("/api/ext/subscriptions", {
+                kind: kind.value,
+                name: name.value,
+                source: source.value,
+                query: query.value,
+                keywords: keywords.value.split(",").map(value => value.trim()).filter(Boolean),
+                requirement: requirement.value,
+                daily_limit: Number(dailyLimit.value),
+                zotero_collection: collection.value
+            });
+            event.currentTarget.reset();
+            dailyLimit.value = 5;
+            formStatus.textContent = "文献订阅已保存";
+            await load();
+        } catch (error) {
+            formStatus.textContent = `保存失败：${error.message}`;
+        } finally {
+            submit.disabled = false;
+        }
+    });
+
+    window.toggleOne = async function (id, enabled) {
+        await api.patch(`/api/ext/subscriptions/${id}`, { enabled });
+        await load();
+    };
+    window.removeOne = async function (id) {
+        await api.delete(`/api/ext/subscriptions/${id}`);
+        await load();
+    };
+    window.runOne = async function (id) {
+        await api.post("/api/ext/literature/runs/run", { subscription_id: id, scope: "literature" });
+        await load();
+    };
+    window.openHandoff = async function (id) {
+        const data = await api.get(`/api/ext/literature/runs/${id}/handoffs`);
+        if (data.handoffs[0]) window.open(data.handoffs[0].open_url, "_blank", "noopener");
+    };
+    window.continueLogin = async function (id) {
+        await api.post("/api/ext/literature/runs/continue-login", { run_id: id });
+        await load();
+    };
+
+    saveAutomation.addEventListener("click", async () => {
+        saveAutomation.disabled = true;
+        automationStatus.textContent = "正在保存运行设置";
+        try {
+            await api.put("/api/ext/automation", {
+                enabled: automationEnabled.checked,
+                run_time: runTime.value,
+                daily_limit: Number(globalLimit.value)
+            });
+            automationStatus.textContent = "运行设置已保存";
+        } catch (error) {
+            automationStatus.textContent = `保存失败：${error.message}`;
+        } finally {
+            saveAutomation.disabled = false;
+        }
+    });
+
+    runLiterature.addEventListener("click", async () => {
+        runLiterature.disabled = true;
+        runLiterature.textContent = "正在启动";
+        try {
+            await api.post("/api/ext/literature/runs/run", { scope: "literature" });
+            await load();
+        } catch (error) {
+            formStatus.textContent = `启动失败：${error.message}`;
+        } finally {
+            runLiterature.disabled = false;
+            runLiterature.textContent = "立即运行全部";
+        }
+    });
+
+    api.get("/api/ext/zotero/status").then(value => {
+        zotero.textContent = value.ready ? "Zotero 已连接" : "Zotero 未启动或本地接口未开启";
+        zotero.classList.toggle("integration-status--ready", value.ready);
+    }).catch(() => { zotero.textContent = "Zotero 状态检查失败"; });
+    load();
+}());
+</script>
+</body>
+</html>

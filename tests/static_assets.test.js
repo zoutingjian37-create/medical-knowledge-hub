@@ -142,27 +142,37 @@ test("secondary pages use concise descriptions", () => {
     assert.match(wechat, /Asia\/Shanghai/);
 });
 
-test("subscription center exposes daily controls and personal source management", () => {
-    const html = fs.readFileSync(path.join(__dirname, "..", "static", "subscriptions.html"), "utf8");
+test("wechat and literature subscriptions are separate operational modules", () => {
+    const wechat = fs.readFileSync(path.join(__dirname, "..", "static", "wechat-subscriptions.html"), "utf8");
+    const literature = fs.readFileSync(path.join(__dirname, "..", "static", "literature-subscriptions.html"), "utf8");
+    const legacy = fs.readFileSync(path.join(__dirname, "..", "static", "subscriptions.html"), "utf8");
     const shell = fs.readFileSync(path.join(__dirname, "..", "static", "js", "app-shell.js"), "utf8");
 
-    assert.match(html, /<h1>订阅中心<\/h1>/);
-    assert.match(html, /每日自动运行/);
-    assert.match(html, /新增订阅/);
-    assert.match(html, /立即运行/);
-    assert.match(html, /Zotero/);
-    assert.match(html, /打开登录页面/);
-    assert.match(html, /已保存到 Zotero，继续/);
-    assert.match(html, /导出个人配置/);
-    assert.match(html, /导入个人配置/);
-    assert.match(html, /class="automation-field"/);
-    assert.match(html, /waiting_confirmation:'等待确认'/);
-    assert.match(html, /\/api\/ext\/subscriptions/);
-    assert.match(shell, /订阅中心/);
+    assert.match(wechat, /<h1>公众号订阅<\/h1>/);
+    assert.match(wechat, /id="wechatAccounts"/);
+    assert.match(wechat, /每行一个公众号/);
+    assert.match(wechat, /id="editWechatAccounts"[^>]*>修改</);
+    assert.match(wechat, /id="saveWechatAccounts"[^>]*>保存</);
+    assert.match(wechat, /\/api\/ext\/subscriptions\/wechat-accounts/);
+    assert.match(wechat, /scope:\s*['"]wechat['"]/);
+    assert.doesNotMatch(wechat, /Zotero|导出个人配置|导入个人配置|RSS \/ Atom/);
+
+    assert.match(literature, /<h1>文献订阅<\/h1>/);
+    assert.match(literature, /RSS \/ Atom/);
+    assert.match(literature, /PubMed \/ Europe PMC/);
+    assert.match(literature, /Zotero/);
+    assert.match(literature, /scope:\s*['"]literature['"]/);
+    assert.doesNotMatch(literature, /微信公众号|公众号名称|value=["']wechat_account["']/);
+
+    assert.match(legacy, /wechat-subscriptions\.html/);
+    assert.match(shell, /公众号订阅/);
+    assert.match(shell, /文献订阅/);
+    assert.doesNotMatch(shell, /订阅中心/);
 });
 
 test("review page exposes the complete review-gated workflow", () => {
     const html = fs.readFileSync(path.join(__dirname, "..", "static", "review.html"), "utf8");
+    const trash = fs.readFileSync(path.join(__dirname, "..", "static", "trash.html"), "utf8");
     const inbox = fs.readFileSync(path.join(__dirname, "..", "static", "inbox.html"), "utf8");
     const wechatCollect = fs.readFileSync(path.join(__dirname, "..", "static", "wechat-collect.html"), "utf8");
 
@@ -172,11 +182,26 @@ test("review page exposes the complete review-gated workflow", () => {
     assert.match(html, /\/compile/);
     assert.match(html, /\/import-preview/);
     assert.match(html, /\/approve/);
-    assert.match(html, /\/trash/);
-    assert.match(html, /回收站/);
-    assert.match(html, /恢复/);
-    assert.match(html, /永久删除/);
-    assert.match(html, /retention_days/);
+    assert.match(html, /href="\/trash\.html"/);
+    assert.doesNotMatch(html, /trashMode|trashSettings|showTrash/);
+    assert.match(html, /id="selectAllJobs"/);
+    assert.match(html, /id="previewSelected"[^>]*disabled/);
+    assert.match(html, /id="saveSelected"[^>]*disabled/);
+    assert.match(html, /id="deleteSelected"[^>]*disabled/);
+    assert.match(html, /\/api\/ext\/knowledge\/jobs\/approve-selected/);
+    assert.match(html, /\/api\/ext\/knowledge\/jobs\/trash-selected/);
+    assert.match(trash, /<h1>回收站<\/h1>/);
+    assert.match(trash, /恢复所选/);
+    assert.match(trash, /彻底清理所选/);
+    assert.match(trash, /id="retentionDays"[^>]*min="1"[^>]*max="30"[^>]*value="7"/);
+    assert.match(trash, /\/api\/ext\/knowledge\/trash\/settings/);
+    assert.match(trash, /\/api\/ext\/knowledge\/trash\/purge/);
+    assert.match(trash, /id="selectAllTrash"/);
+    assert.match(trash, /id="clearSelected"[^>]*disabled/);
+    assert.match(trash, /id="restoreSelected"[^>]*disabled/);
+    assert.match(trash, /\/api\/ext\/knowledge\/trash\/delete-selected/);
+    assert.match(trash, /\/api\/ext\/knowledge\/trash\/restore-selected/);
+    assert.doesNotMatch(trash, /onclick="(?:restoreJob|deleteJob)/);
     assert.match(html, /默认用 Skill 提炼/);
     assert.match(html, /\/api\/ext\/knowledge\/settings/);
     assert.match(inbox, /\/api\/ext\/knowledge\/settings/);

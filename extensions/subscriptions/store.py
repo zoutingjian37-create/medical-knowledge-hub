@@ -3,6 +3,7 @@
 import json
 import os
 import re
+import unicodedata
 from dataclasses import replace
 from datetime import date, datetime, timezone
 from pathlib import Path
@@ -101,6 +102,55 @@ class SubscriptionStore:
         self._write_subscriptions(
             [item for item in self.list() if item.id != subscription_id]
         )
+
+    def sync_wechat_accounts(self, names) -> tuple[Subscription, ...]:
+        """Replace the default WeChat account list with one atomic state write."""
+
+        desired = _clean_account_names(names)
+        subscriptions = self.list()
+        existing = {}
+        for item in subscriptions:
+            if item.kind == "wechat_account":
+                existing.setdefault(_account_key(item.name), item)
+
+        now = _utc_now()
+        synced = []
+        for name in desired:
+            current = existing.get(_account_key(name))
+            if current is None:
+                current = Subscription(
+                    id=uuid4().hex,
+                    kind="wechat_account",
+                    name=name,
+                    source=name,
+                    query="",
+                    keywords=(),
+                    requirement="",
+                    enabled=True,
+                    daily_limit=5,
+                    zotero_collection=name,
+                    created_at=now,
+                    updated_at=now,
+                )
+            else:
+                collection = current.zotero_collection
+                if not collection or collection == current.name:
+                    collection = name
+                current = replace(
+                    current,
+                    name=name,
+                    source=name,
+                    enabled=True,
+                    zotero_collection=collection,
+                    updated_at=now,
+                )
+            synced.append(current)
+
+        non_wechat = [
+            item for item in subscriptions if item.kind != "wechat_account"
+        ]
+        self._write_subscriptions([*non_wechat, *synced])
+        return tuple(synced)
 
     def get_automation(self) -> AutomationSettings:
         payload = _read_json(self.automation_path, {})
@@ -206,6 +256,30 @@ def _validate_date(value: str) -> None:
 
 def _clean_keywords(values) -> tuple[str, ...]:
     return tuple(dict.fromkeys(str(value).strip() for value in values if str(value).strip()))
+
+
+def _clean_account_names(values) -> tuple[str, ...]:
+    cleaned = []
+    seen = set()
+    for value in values:
+        name = unicodedata.normalize("NFKC", str(value)).strip()
+        if not name:
+            continue
+        if "\n" in name or "\r" in name:
+            raise ValueError("each WeChat account must be a single line")
+        if len(name) > 200:
+            raise ValueError("WeChat account name must be at most 200 characters")
+        key = _account_key(name)
+        if key not in seen:
+            seen.add(key)
+            cleaned.append(name)
+    if len(cleaned) > 100:
+        raise ValueError("at most 100 WeChat accounts are supported")
+    return tuple(cleaned)
+
+
+def _account_key(value: str) -> str:
+    return unicodedata.normalize("NFKC", str(value)).strip().casefold()
 
 
 def _utc_now() -> str:

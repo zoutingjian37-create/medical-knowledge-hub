@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>公众号订阅 - Medical Knowledge Hub</title>
+    <link rel="stylesheet" href="/static/css/app.css?v=20260801">
+</head>
+<body class="subscription-surface">
+<div id="app-shell"></div>
+<main class="page-shell subscription-page">
+    <header class="workspace-header">
+        <div>
+            <h1>公众号订阅</h1>
+            <p>设置默认查找的公众号。程序按发布日期发现文章，提炼后进入待确认区，再保存到 Obsidian。</p>
+        </div>
+    </header>
+
+    <div class="subscription-layout">
+        <section class="subscription-section subscription-section--main" aria-labelledby="wechat-list-title">
+            <header class="subscription-section__header">
+                <div>
+                    <h2 id="wechat-list-title">默认公众号</h2>
+                    <p>每行一个公众号。保存后，以后会默认查找这份名单。</p>
+                </div>
+            </header>
+            <div class="subscription-section__body">
+                <label class="field-label" for="wechatAccounts">公众号名称</label>
+                <textarea id="wechatAccounts" class="account-textarea" rows="9" readonly aria-describedby="wechatHelp" placeholder="点击“修改”，每行输入一个公众号名称"></textarea>
+                <p id="wechatHelp" class="field-help">名称必须和微信搜索结果中的公众号名称一致。空行会被忽略，重复名称会自动合并。</p>
+                <div class="editor-actions">
+                    <button id="editWechatAccounts" class="secondary" type="button">修改</button>
+                    <button id="saveWechatAccounts" class="primary" type="button" disabled>保存</button>
+                    <span id="accountStatus" class="status-line" role="status" aria-live="polite">正在读取公众号名单</span>
+                </div>
+            </div>
+            <div class="process-strip" aria-label="公众号处理流程">
+                <span><strong>发现</strong> 已登录微信中查找指定公众号</span>
+                <span><strong>提炼</strong> 过滤广告和废话，生成知识预览</span>
+                <span><strong>归档</strong> 确认后写入 Obsidian</span>
+            </div>
+            <div class="subscription-footer-actions">
+                <button id="runWechat" class="primary" type="button">立即查找这些公众号</button>
+                <a class="text-action" href="/review.html">查看待确认内容</a>
+            </div>
+        </section>
+
+        <aside class="subscription-section" aria-labelledby="wechat-automation-title">
+            <header class="subscription-section__header">
+                <div>
+                    <h2 id="wechat-automation-title">每日运行</h2>
+                    <p>本机统一计划会处理所有已启用订阅，关闭后仍可手动运行。</p>
+                </div>
+            </header>
+            <div class="subscription-section__body automation-form">
+                <label class="toggle-field"><input id="automationEnabled" type="checkbox"> 开启每日自动运行</label>
+                <label class="field-label">执行时间<input id="runTime" type="time" value="08:30"></label>
+                <label class="field-label">每日提炼上限<input id="globalLimit" type="number" min="1" max="100" value="5"></label>
+                <button id="saveAutomation" class="secondary" type="button">保存运行设置</button>
+                <span id="automationStatus" class="status-line" role="status" aria-live="polite"></span>
+            </div>
+            <div class="run-section">
+                <h2>公众号运行记录</h2>
+                <div id="wechatRuns" class="run-list" aria-live="polite"><p class="empty-state">正在读取运行记录</p></div>
+            </div>
+        </aside>
+    </div>
+</main>
+<script src="/static/js/api-client.js"></script>
+<script src="/static/js/app-shell.js"></script>
+<script>
+(function () {
+    "use strict";
+    const api = window.ContentHubAPI;
+    const accountsField = document.getElementById("wechatAccounts");
+    const editButton = document.getElementById("editWechatAccounts");
+    const saveButton = document.getElementById("saveWechatAccounts");
+    const accountStatus = document.getElementById("accountStatus");
+    const runsContainer = document.getElementById("wechatRuns");
+    const statusLabels = {
+        discovering: "正在发现",
+        filtered: "已过滤",
+        distilling: "正在提炼",
+        waiting_confirmation: "等待确认",
+        completed: "已完成",
+        failed: "失败"
+    };
+    let editing = false;
+    let subscriptions = [];
+
+    function escapeHtml(value) {
+        const span = document.createElement("span");
+        span.textContent = String(value || "");
+        return span.innerHTML;
+    }
+
+    function setEditing(next) {
+        editing = next;
+        accountsField.readOnly = !next;
+        editButton.disabled = next;
+        saveButton.disabled = !next;
+        if (next) {
+            accountStatus.textContent = "编辑完成后点击保存";
+            accountsField.focus();
+            accountsField.setSelectionRange(accountsField.value.length, accountsField.value.length);
+        }
+    }
+
+    function renderRuns(runs) {
+        const ids = new Set(subscriptions.map(item => item.id));
+        const relevant = runs.filter(run => ids.has(run.subscription_id)).slice(0, 8);
+        runsContainer.innerHTML = relevant.map(run => {
+            const error = run.error ? `<p class="run-error">${escapeHtml(run.error)}</p>` : "";
+            return `<div class="run-row"><strong>${escapeHtml(statusLabels[run.status] || run.status)}</strong><span>发现 ${run.discovered} 篇，待确认 ${run.queued} 篇</span>${error}</div>`;
+        }).join("") || '<p class="empty-state">还没有公众号运行记录。</p>';
+    }
+
+    async function load() {
+        try {
+            const [accountData, automationData, runData] = await Promise.all([
+                api.get("/api/ext/subscriptions/wechat-accounts"),
+                api.get("/api/ext/automation"),
+                api.get("/api/ext/literature/runs")
+            ]);
+            subscriptions = accountData.subscriptions;
+            if (!editing) accountsField.value = subscriptions.map(item => item.name).join("\n");
+            accountStatus.textContent = `已保存 ${subscriptions.length} 个公众号`;
+            automationEnabled.checked = automationData.automation.enabled;
+            runTime.value = automationData.automation.run_time;
+            globalLimit.value = automationData.automation.daily_limit;
+            renderRuns(runData.runs);
+        } catch (error) {
+            accountStatus.textContent = `读取失败：${error.message}`;
+            runsContainer.innerHTML = '<p class="error-state">运行记录读取失败，请刷新页面重试。</p>';
+        }
+    }
+
+    editButton.addEventListener("click", () => setEditing(true));
+    saveButton.addEventListener("click", async () => {
+        const accounts = accountsField.value.split(/\r?\n/).map(value => value.trim()).filter(Boolean);
+        saveButton.disabled = true;
+        saveButton.textContent = "保存中";
+        accountStatus.textContent = "正在保存公众号名单";
+        try {
+            const data = await api.put("/api/ext/subscriptions/wechat-accounts", { accounts });
+            subscriptions = data.subscriptions;
+            accountsField.value = subscriptions.map(item => item.name).join("\n");
+            setEditing(false);
+            accountStatus.textContent = `已保存 ${subscriptions.length} 个公众号`;
+            await load();
+        } catch (error) {
+            accountStatus.textContent = `保存失败：${error.message}`;
+            saveButton.disabled = false;
+        } finally {
+            saveButton.textContent = "保存";
+        }
+    });
+
+    saveAutomation.addEventListener("click", async () => {
+        saveAutomation.disabled = true;
+        automationStatus.textContent = "正在保存运行设置";
+        try {
+            await api.put("/api/ext/automation", {
+                enabled: automationEnabled.checked,
+                run_time: runTime.value,
+                daily_limit: Number(globalLimit.value)
+            });
+            automationStatus.textContent = "运行设置已保存";
+        } catch (error) {
+            automationStatus.textContent = `保存失败：${error.message}`;
+        } finally {
+            saveAutomation.disabled = false;
+        }
+    });
+
+    runWechat.addEventListener("click", async () => {
+        if (!subscriptions.length) {
+            accountStatus.textContent = "请先添加并保存公众号";
+            return;
+        }
+        runWechat.disabled = true;
+        runWechat.textContent = "正在启动";
+        accountStatus.textContent = "已启动公众号查找，请保持微信登录";
+        try {
+            await api.post("/api/ext/literature/runs/run", { scope: "wechat" });
+            await load();
+        } catch (error) {
+            accountStatus.textContent = `启动失败：${error.message}`;
+        } finally {
+            runWechat.disabled = false;
+            runWechat.textContent = "立即查找这些公众号";
+        }
+    });
+
+    load();
+}());
+</script>
+</body>
+</html>

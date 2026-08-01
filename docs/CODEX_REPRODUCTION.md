@@ -5,7 +5,7 @@
 ## 不可改变的产品边界
 
 - 支持微信、知乎、B站、小红书、抖音公开链接；五个平台统一进入 `KnowledgeJobQueue`。
-- 订阅中心支持 `wechat_account`、`journal`、`feed`、`literature_query`；新克隆必须为空白状态，个人配置只能位于 `CONTENT_HUB_STATE_DIR`。
+- 公众号订阅和文献订阅必须是两个独立导航模块；底层仍共享 `Subscription` 存储。支持 `wechat_account`、`journal`、`feed`、`literature_query`，新克隆必须为空白状态，个人配置只能位于 `CONTENT_HUB_STATE_DIR`。
 - 微信默认使用本地视觉状态机操作已登录的微信电脑版发现公开链接，再由 OpenCLI 解析单篇链接；其他四个平台复用 OpenCLI，不复制爬虫。
 - Codex 只生成预览；只有本地服务的 `/approve` 在用户确认后可以写 Vault。
 - 不收集平台密码、Cookie、Token、聊天数据库或微信个人资料。
@@ -29,7 +29,7 @@
      └─ trash   → 回收站 → restore 或到期/手动永久删除
 ```
 
-活动任务接口默认排除 `trashed` 和兼容旧版本的 `rejected` 状态。回收站保留期默认 7 天，合法范围为 1–30 天；软删除阶段不得删除缓存或预览，永久删除阶段只允许清理本地任务、缓存、handoff 和 preview，不得删除 Zotero 或 Obsidian 内容。
+活动任务接口默认排除 `trashed` 和兼容旧版本的 `rejected` 状态。“查看与保存”采用复选框加顶部工具条，统一提供全选、预览、保存和删除；回收站采用复选框加顶部工具条，统一提供全选、恢复和永久删除。回收站保留期默认 7 天，合法范围为 1–30 天；软删除阶段不得删除缓存或预览，永久删除阶段只允许清理本地任务、缓存、handoff 和 preview，不得删除 Zotero 或 Obsidian 内容。
 
 订阅链路是另一条入口，但与手动链接共用同一提炼和审批边界：
 
@@ -99,7 +99,7 @@ Invoke-RestMethod http://127.0.0.1:5000/api/ext/zotero/status
 6. 确认前 Vault 不得出现新文件。只有用户在“查看与保存”中批准后才能归档。
 7. 对一篇需要权限的文献验证 `waiting_school_login`：软件打开出版社页面，用户自行登录并点 Connector，随后“继续”按 DOI 检测入库。
 8. 关闭总开关后计划任务不得自动处理；暂停单条订阅生效；删除订阅不得删除已有 Zotero 或 Obsidian 内容。
-9. 导出、再导入个人配置；确认导出 JSON 没有账号、密码、Cookie、Token。
+9. 在公众号订阅文本框中修改并保存虚构测试号；确认个人配置只写入项目外的 `CONTENT_HUB_STATE_DIR`，仓库仍为空白默认值。
 
 ## 真实链接验收
 
@@ -125,7 +125,11 @@ Invoke-RestMethod http://127.0.0.1:5000/api/ext/zotero/status
 - `extensions/subscriptions/`：订阅存储、发现、去重、Zotero、流水线、调度和运行状态。
 - `routes_ext/subscriptions.py`：订阅 CRUD、自动化、运行、登录接力与 Zotero 状态 API。
 - `static/inbox.html`：五平台手动链接 UI。
-- `static/subscriptions.html`：订阅中心和个人配置导入/导出 UI。
+- `static/wechat-subscriptions.html`：公众号名称批量编辑、启停与立即运行 UI。
+- `static/literature-subscriptions.html`：期刊、RSS/Atom、文献检索和 Zotero UI。
+- `static/review.html`：公众号文章与文献的统一勾选、预览、确认和软删除 UI。
+- `static/trash.html`：回收站保留期、批量恢复和永久删除 UI。
+- `static/subscriptions.html`：兼容旧地址，只重定向到公众号订阅。
 - `skills/distill-medical-literature/`：可复用医学文献提炼契约。
 - `skills/distill-medical-wechat/`：公众号和其他公开平台医学讲解提炼契约。
 

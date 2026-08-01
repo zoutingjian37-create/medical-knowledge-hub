@@ -3,68 +3,12 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>订阅中心 - Medical Knowledge Hub</title>
-    <link rel="stylesheet" href="/static/css/app.css">
-    <style>
-        .subscription-grid{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(300px,.7fr);gap:20px}
-        .subscription-form{display:grid;grid-template-columns:1fr 1fr;gap:14px}.subscription-form .wide{grid-column:1/-1}
-        .subscription-form label{display:grid;gap:7px;font-weight:650}.subscription-form input,.subscription-form select,.subscription-form textarea{padding:10px;border:1px solid var(--line,#dce3e6);border-radius:8px;font:inherit}.subscription-form textarea{min-height:80px}
-        .subscription-list{display:grid;gap:10px;margin-top:18px}.subscription-item{border-top:1px solid #dce3e6;padding:14px 0;display:flex;justify-content:space-between;gap:16px}.subscription-actions,.config-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.config-actions{margin-top:16px}.config-actions input{display:none}
-        button{border:0;border-radius:8px;padding:9px 13px;cursor:pointer}.primary{background:#087e78;color:white}.secondary{background:#e6f3f1;color:#05645f}.danger{background:#fff1ef;color:#9b2c24}
-        .automation-row{display:grid;gap:12px}.automation-field{display:grid;gap:7px;font-weight:650}.automation-field input{width:100%;box-sizing:border-box;padding:10px;border:1px solid var(--line,#dce3e6);border-radius:8px;background:#fff;font:inherit}.automation-toggle{display:flex;gap:8px;align-items:center}.status-line{color:#637083}.run-list{display:grid;gap:8px}.run-row{padding:10px;background:#f4f6f7;border-radius:8px}
-        @media(max-width:900px){.subscription-grid{grid-template-columns:1fr}}@media(max-width:620px){.subscription-form{grid-template-columns:1fr}.subscription-form .wide{grid-column:auto}.subscription-item{display:grid}}
-    </style>
+    <meta http-equiv="refresh" content="0; url=/wechat-subscriptions.html">
+    <title>正在打开公众号订阅 - Medical Knowledge Hub</title>
+    <link rel="canonical" href="/wechat-subscriptions.html">
 </head>
 <body>
-<div id="app-shell"></div>
-<main class="page-shell">
-    <header class="workspace-header"><div><h1>订阅中心</h1><p>管理公众号、期刊、RSS 和检索要求；个人配置只保存在本机。</p></div></header>
-    <div class="subscription-grid">
-        <section class="workspace-panel">
-            <header class="section-heading"><div><h2>新增订阅</h2><p>期刊优先填写 RSS；没有 RSS 时使用 Europe PMC 检索。</p></div></header>
-            <form id="subscriptionForm" class="subscription-form">
-                <label>类型<select id="kind"><option value="wechat_account">微信公众号</option><option value="journal">目标期刊</option><option value="feed">RSS / Atom</option><option value="literature_query">文献检索</option></select></label>
-                <label>名称<input id="name" required placeholder="例如：目标期刊或研究主题"></label>
-                <label class="wide">来源地址或公众号名称<input id="source" placeholder="RSS、期刊主页，或公众号名称"></label>
-                <label class="wide">PubMed / Europe PMC 查询<input id="query" placeholder="例如：target trial emulation"></label>
-                <label class="wide">关键词（逗号分隔）<input id="keywords" placeholder="cardiovascular, causal inference"></label>
-                <label class="wide">提炼要求<textarea id="requirement" placeholder="只保留高质量医学研究，关注可迁移的统计方法与创新点"></textarea></label>
-                <label>每日上限<input id="dailyLimit" type="number" min="1" max="100" value="5"></label>
-                <label>Zotero 目录<input id="collection" placeholder="默认使用订阅名称"></label>
-                <button class="primary wide" type="submit">保存订阅</button>
-            </form>
-            <div class="config-actions" aria-label="个人配置管理">
-                <button id="exportConfig" class="secondary" type="button">导出个人配置</button>
-                <label class="secondary" for="importConfig" role="button" tabindex="0">导入个人配置</label>
-                <input id="importConfig" type="file" accept="application/json,.json">
-                <span id="configStatus" class="status-line" aria-live="polite"></span>
-            </div>
-            <div id="subscriptions" class="subscription-list"></div>
-        </section>
-        <aside class="workspace-panel automation-row">
-            <header class="section-heading"><div><h2>每日自动运行</h2><p>关闭后保留历史内容；立即运行仍然可用。</p></div></header>
-            <label class="automation-toggle"><input id="automationEnabled" type="checkbox"> 开启每日自动运行</label>
-            <label class="automation-field">执行时间 <input id="runTime" type="time" value="08:30"></label>
-            <label class="automation-field">每日提炼上限 <input id="globalLimit" type="number" min="1" max="100" value="5"></label>
-            <button id="saveAutomation" class="primary">保存自动化设置</button>
-            <button id="runAll" class="secondary">立即运行全部已启用订阅</button>
-            <div id="zotero" class="status-line">正在检查 Zotero…</div>
-            <header class="section-heading"><div><h2>运行记录</h2></div></header>
-            <div id="runs" class="run-list"></div>
-        </aside>
-    </div>
-</main>
-<script src="/static/js/api-client.js"></script><script src="/static/js/app-shell.js"></script>
-<script>
-const api=window.ContentHubAPI;const list=document.getElementById('subscriptions');const runs=document.getElementById('runs');
-const kindLabels={wechat_account:'微信公众号',journal:'目标期刊',feed:'RSS / Atom',literature_query:'文献检索'};
-const statusLabels={discovering:'正在发现',filtered:'已过滤',saved_zotero:'已存 Zotero',waiting_school_login:'等待学校登录',distilling:'正在提炼',waiting_confirmation:'等待确认',completed:'已完成',failed:'失败'};
-async function load(){const data=await api.get('/api/ext/subscriptions');list.innerHTML=data.subscriptions.map(item=>`<div class="subscription-item"><span><strong>${escapeHtml(item.name)}</strong><br><small>${escapeHtml(kindLabels[item.kind]||item.kind)} · 每日 ${item.daily_limit} 篇</small></span><span class="subscription-actions"><button class="secondary" onclick="runOne('${item.id}')">立即运行</button><button class="secondary" onclick="toggleOne('${item.id}',${!item.enabled})">${item.enabled?'暂停':'恢复'}</button><button class="danger" onclick="removeOne('${item.id}')">删除</button></span></div>`).join('')||'<p class="status-line">尚未添加订阅。</p>';const auto=await api.get('/api/ext/automation');automationEnabled.checked=auto.automation.enabled;runTime.value=auto.automation.run_time;globalLimit.value=auto.automation.daily_limit;await loadRuns();}
-async function loadRuns(){const data=await api.get('/api/ext/literature/runs');runs.innerHTML=data.runs.slice(0,10).map(run=>`<div class="run-row"><strong>${escapeHtml(statusLabels[run.status]||run.status)}</strong><br><small>发现 ${run.discovered} · 入 Zotero ${run.saved_zotero} · 待确认 ${run.queued}</small>${run.error?`<br><small class="status-line">${escapeHtml(run.error)}</small>`:''}${run.status==='waiting_school_login'?`<br><button class="secondary" onclick="openHandoff('${run.id}')">打开登录页面</button> <button class="primary" onclick="continueLogin('${run.id}')">已保存到 Zotero，继续</button>`:''}</div>`).join('')||'<span class="status-line">暂无运行记录。</span>';}
-subscriptionForm.addEventListener('submit',async event=>{event.preventDefault();await api.post('/api/ext/subscriptions',{kind:kind.value,name:name.value,source:source.value,query:query.value,keywords:keywords.value.split(',').map(v=>v.trim()).filter(Boolean),requirement:requirement.value,daily_limit:Number(dailyLimit.value),zotero_collection:collection.value});event.target.reset();dailyLimit.value=5;await load();});
-async function toggleOne(id,enabled){await fetch(`/api/ext/subscriptions/${id}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled})});await load();}async function removeOne(id){await fetch(`/api/ext/subscriptions/${id}`,{method:'DELETE'});await load();}async function runOne(id){await api.post('/api/ext/literature/runs/run',{subscription_id:id});await loadRuns();}async function openHandoff(id){const data=await api.get(`/api/ext/literature/runs/${id}/handoffs`);if(data.handoffs[0])window.open(data.handoffs[0].open_url,'_blank','noopener');}async function continueLogin(id){await api.post('/api/ext/literature/runs/continue-login',{run_id:id});await loadRuns();}
-saveAutomation.onclick=async()=>{await fetch('/api/ext/automation',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:automationEnabled.checked,run_time:runTime.value,daily_limit:Number(globalLimit.value)})});await load();};runAll.onclick=async()=>{await api.post('/api/ext/literature/runs/run',{});await loadRuns();};function escapeHtml(value){const span=document.createElement('span');span.textContent=String(value||'');return span.innerHTML;}api.get('/api/ext/zotero/status').then(value=>zotero.textContent=value.ready?'Zotero 已连接':'Zotero 未启动或本地接口未开启');load();
-exportConfig.onclick=async()=>{const data=await api.get('/api/ext/subscriptions/export');const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const link=document.createElement('a');link.href=url;link.download=`medical-knowledge-hub-subscriptions-${new Date().toISOString().slice(0,10)}.json`;link.click();URL.revokeObjectURL(url);configStatus.textContent='个人配置已导出。';};
-importConfig.addEventListener('change',async()=>{const file=importConfig.files&&importConfig.files[0];if(!file)return;try{const payload=JSON.parse(await file.text());await api.post('/api/ext/subscriptions/import',payload);configStatus.textContent='个人配置已导入。';await load();}catch(error){configStatus.textContent=`导入失败：${error.message}`;}finally{importConfig.value='';}});
-</script>
-</body></html>
+    <p>正在打开<a href="/wechat-subscriptions.html">公众号订阅</a>。</p>
+    <script>window.location.replace("/wechat-subscriptions.html");</script>
+</body>
+</html>

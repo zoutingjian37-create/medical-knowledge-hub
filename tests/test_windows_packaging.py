@@ -39,6 +39,8 @@ class WindowsPackagingTests(unittest.TestCase):
         self.assertIn("start.sh", manifest)
         self.assertIn("status.sh", manifest)
         self.assertIn("assets/medical-knowledge-hub.ico", manifest)
+        self.assertIn("assets/medical-knowledge-hub.svg", manifest)
+        self.assertIn("tools/build_icon_assets.py", manifest)
         self.assertIn("docs/CODEX_REPRODUCTION.md", manifest)
         self.assertIn("PRODUCT.md", manifest)
         self.assertNotIn(".env", manifest)

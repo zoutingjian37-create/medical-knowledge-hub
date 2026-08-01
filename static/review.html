@@ -4,56 +4,36 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>查看与保存 - Medical Knowledge Hub</title>
-    <link rel="stylesheet" href="/static/css/app.css">
-    <style>
-        body { margin:0; background:#f6f8fb; color:#172033; font-family:system-ui,"Microsoft YaHei",sans-serif; }
-        main { max-width:1050px; margin:0 auto; padding:34px 24px 72px; }
-        h1 { margin:0 0 8px; font-size:30px; }
-        .lead { margin:0 0 24px; color:#667085; line-height:1.65; }
-        .toolbar { display:flex; gap:10px; align-items:center; margin-bottom:18px; }
-        .trash-settings { display:flex; flex-wrap:wrap; gap:12px; align-items:center; margin:0 0 18px; padding:14px 16px; background:#fff; border:1px solid #e7eaf0; border-radius:12px; }
-        .trash-settings[hidden] { display:none; }
-        .trash-settings input { width:76px; border:1px solid #d0d5dd; border-radius:8px; padding:8px 10px; background:#fff; }
-        .trash-note { flex-basis:100%; margin:0; color:#667085; font-size:13px; }
-        button, .button { border:0; border-radius:9px; padding:9px 14px; background:#1677ff; color:#fff; font:inherit; font-weight:650; cursor:pointer; text-decoration:none; }
-        button.secondary { background:#eef4ff; color:#175cd3; }
-        button.danger { background:#fff1f0; color:#b42318; }
-        button:disabled { opacity:.55; cursor:wait; }
-        .list { display:grid; gap:14px; }
-        .card { background:#fff; border:1px solid #e7eaf0; border-radius:14px; padding:19px; }
-        .card__top { display:flex; justify-content:space-between; gap:14px; align-items:flex-start; }
-        .card h2 { margin:0 0 7px; font-size:18px; }
-        .meta { color:#667085; font-size:14px; line-height:1.6; }
-        .status { flex:0 0 auto; border-radius:999px; padding:5px 10px; background:#f2f4f7; color:#475467; font-size:12px; }
-        .actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:15px; }
-        .message { margin-top:12px; color:#175cd3; min-height:20px; }
-        .empty { padding:36px; text-align:center; background:#fff; border:1px dashed #cfd5df; border-radius:14px; color:#667085; }
-        dialog { width:min(900px,calc(100vw - 32px)); max-height:85vh; border:0; border-radius:14px; padding:0; box-shadow:0 24px 80px rgba(16,24,40,.24); }
-        dialog::backdrop { background:rgba(16,24,40,.48); }
-        .dialog-head { display:flex; justify-content:space-between; align-items:center; padding:16px 20px; border-bottom:1px solid #eaecf0; }
-        .dialog-body { margin:0; padding:20px; max-height:58vh; overflow:auto; white-space:pre-wrap; line-height:1.75; background:#fbfcfe; }
-        .dialog-actions { display:flex; justify-content:flex-end; align-items:center; gap:10px; padding:14px 20px; border-top:1px solid #eaecf0; }
-        .dialog-message { flex:1; color:#175cd3; font-size:13px; }
-        @media(max-width:680px){ .card__top{display:block}.status{display:inline-block;margin-top:10px} }
-    </style>
+    <link rel="stylesheet" href="/static/css/app.css?v=20260801">
 </head>
-<body>
-<main>
-    <h1>查看与保存</h1>
-    <p class="lead">这里显示已经提取的内容。检查无误后，点击“确认保存”写入 Obsidian。</p>
-    <div class="toolbar">
+<body class="subscription-surface">
+<main class="page-shell review-page">
+    <header class="workspace-header review-header">
+        <div>
+            <h1>查看与保存</h1>
+            <p>公众号文章和文献统一在这里确认。只有准备完成的预览才能保存到 Obsidian。</p>
+        </div>
+    </header>
+    <nav class="review-shortcuts" aria-label="内容入口">
         <button id="refresh" class="secondary">刷新任务</button>
         <button id="skillDefault" class="secondary" aria-pressed="true">默认用 Skill 提炼：开启</button>
-        <button id="showTrash" class="secondary" aria-pressed="false">回收站</button>
         <a class="button" href="/inbox.html">粘贴新链接</a>
         <a class="button" href="/wechat-collect.html">查找公众号</a>
-    </div>
-    <section id="trashSettings" class="trash-settings" hidden>
-        <strong>回收站</strong>
-        <label>自动永久删除：
-            <input id="retentionDays" type="number" min="1" max="30" value="7" aria-label="回收站保留天数"> 天后
-        </label>
-        <p class="trash-note">永久删除只清理本地任务、临时正文和预览，不会删除 Zotero 文献或已写入 Obsidian 的内容。</p>
+        <a class="text-action" href="/trash.html">打开回收站</a>
+    </nav>
+    <section class="review-command-bar" aria-label="批量操作">
+        <div class="review-selection">
+            <label class="select-all-control">
+                <input id="selectAllJobs" type="checkbox">
+                <span>全选</span>
+            </label>
+            <span id="jobSelectionSummary" class="selection-summary">已选 0 项</span>
+        </div>
+        <div class="review-bulk-actions">
+            <button id="previewSelected" class="secondary" type="button" disabled>预览</button>
+            <button id="saveSelected" type="button" disabled>保存到 Obsidian</button>
+            <button id="deleteSelected" class="danger" type="button" disabled>删除</button>
+        </div>
     </section>
     <section id="jobs" class="list" aria-live="polite"></section>
 </main>
@@ -80,13 +60,17 @@
     var previewText = document.getElementById("previewText");
     var previewMessage = document.getElementById("previewMessage");
     var savePreview = document.getElementById("savePreview");
-    var previewJobId = "";
-    var showTrash = document.getElementById("showTrash");
-    var trashSettings = document.getElementById("trashSettings");
-    var retentionDays = document.getElementById("retentionDays");
+    var previewJobIds = [];
     var skillDefault = document.getElementById("skillDefault");
-    var trashMode = false;
     var autoDistill = true;
+    var currentJobs = [];
+    var jobsById = new Map();
+    var selectedIds = new Set();
+    var selectAllJobs = document.getElementById("selectAllJobs");
+    var selectionSummary = document.getElementById("jobSelectionSummary");
+    var previewSelected = document.getElementById("previewSelected");
+    var saveSelected = document.getElementById("saveSelected");
+    var deleteSelected = document.getElementById("deleteSelected");
     var labels = {
         pending: "等待处理",
         handoff_ready: "正在处理",
@@ -114,9 +98,23 @@
         card.querySelector(".message").textContent = value;
     }
 
-    function renderJob(job, recycled) {
+    function renderJob(job) {
         var card = document.createElement("article");
         card.className = "card";
+        card.dataset.jobId = job.id;
+        var selector = document.createElement("label");
+        selector.className = "card__selector";
+        selector.setAttribute("aria-label", "选择 " + (job.title || "未命名文章"));
+        var checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.value = job.id;
+        checkbox.addEventListener("change", function () {
+            if (checkbox.checked) selectedIds.add(job.id);
+            else selectedIds.delete(job.id);
+            card.classList.toggle("card--selected", checkbox.checked);
+            updateSelectionControls();
+        });
+        selector.append(checkbox);
         var top = document.createElement("div");
         top.className = "card__top";
         var summary = document.createElement("div");
@@ -133,22 +131,7 @@
         var actions = document.createElement("div");
         actions.className = "actions";
 
-        if (recycled) {
-            actions.append(button("恢复", "secondary", async function () {
-                try {
-                    await post("/api/ext/knowledge/jobs/" + job.id + "/restore");
-                    await loadJobs();
-                } catch (error) { setMessage(card, error.message); }
-            }));
-            actions.append(button("永久删除", "danger", async function () {
-                if (!window.confirm("永久删除后无法恢复。只会清理本地任务、临时正文和预览，是否继续？")) return;
-                try {
-                    await window.ContentHubAPI.delete("/api/ext/knowledge/jobs/" + job.id);
-                    await loadJobs();
-                } catch (error) { setMessage(card, error.message); }
-            }));
-        }
-        if (!recycled && job.status === "needs_reparse") {
+        if (job.status === "needs_reparse") {
             actions.append(button("重新读取", "", async function () {
                 try {
                     await window.ContentHubAPI.post(
@@ -159,7 +142,7 @@
                 } catch (error) { setMessage(card, error.message); }
             }));
         }
-        if (!recycled && ["pending", "failed", "handoff_ready"].includes(job.status)) {
+        if (["pending", "failed", "handoff_ready"].includes(job.status)) {
             actions.append(button("自动提取重点", "", async function (event) {
                 var control = event.currentTarget;
                 control.disabled = true;
@@ -173,7 +156,7 @@
                 }
             }));
         }
-        if (!recycled && ["pending", "failed"].includes(job.status)) {
+        if (["pending", "failed"].includes(job.status)) {
             actions.append(button("复制任务给 Codex", "secondary", async function () {
                 try {
                     var result = await post("/api/ext/knowledge/jobs/" + job.id + "/handoff");
@@ -182,7 +165,7 @@
                 } catch (error) { setMessage(card, error.message); }
             }));
         }
-        if (!recycled && job.status === "handoff_ready") {
+        if (job.status === "handoff_ready") {
             actions.append(button("导入 Codex 结果", "", async function () {
                 try {
                     await post("/api/ext/knowledge/jobs/" + job.id + "/import-preview");
@@ -190,86 +173,144 @@
                 } catch (error) { setMessage(card, error.message); }
             }));
         }
-        if (!recycled && job.status === "preview_ready") {
-            actions.append(button("预览并保存", "secondary", async function () {
-                try {
-                    var result = await window.ContentHubAPI.get("/api/ext/knowledge/jobs/" + job.id + "/preview");
-                    previewText.textContent = result.markdown;
-                    previewJobId = job.id;
-                    previewMessage.textContent = "确认前不会改动 Obsidian。";
-                    savePreview.disabled = false;
-                    dialog.showModal();
-                } catch (error) { setMessage(card, error.message); }
-            }));
-        }
-        if (!recycled && job.status !== "approved") {
-            actions.append(button("删除", "danger", async function () {
-                if (!window.confirm("这篇内容会移入回收站，保留期内可以恢复，是否继续？")) return;
-                try {
-                    await post("/api/ext/knowledge/jobs/" + job.id + "/trash");
-                    await loadJobs();
-                } catch (error) { setMessage(card, error.message); }
-            }));
-        }
         var message = document.createElement("div");
         message.className = "message";
         if (job.error) message.textContent = job.error;
-        card.append(top, actions, message);
+        card.append(selector, top);
+        if (actions.childElementCount) card.append(actions);
+        card.append(message);
         return card;
+    }
+
+    function updateSelectionControls() {
+        var selectedJobs = Array.from(selectedIds).map(function (id) {
+            return jobsById.get(id);
+        }).filter(Boolean);
+        var total = currentJobs.length;
+        var selected = selectedJobs.length;
+        var allReady = selected > 0 && selectedJobs.every(function (job) {
+            return job.status === "preview_ready";
+        });
+        selectAllJobs.checked = total > 0 && selected === total;
+        selectAllJobs.indeterminate = selected > 0 && selected < total;
+        selectAllJobs.disabled = total === 0;
+        previewSelected.disabled = !allReady;
+        saveSelected.disabled = !allReady;
+        deleteSelected.disabled = selected === 0;
+        selectionSummary.textContent = allReady && selected
+            ? `已选 ${selected} 项，均可预览和保存`
+            : `已选 ${selected} 项`;
+    }
+
+    function selectedJobIds() {
+        return Array.from(selectedIds);
+    }
+
+    async function openSelectedPreviews() {
+        var ids = selectedJobIds();
+        if (!ids.length) return;
+        previewSelected.disabled = true;
+        selectionSummary.textContent = "正在读取预览";
+        try {
+            var results = await Promise.all(ids.map(function (id) {
+                return window.ContentHubAPI.get("/api/ext/knowledge/jobs/" + id + "/preview");
+            }));
+            previewText.textContent = results.map(function (result, index) {
+                var title = jobsById.get(ids[index]).title || "未命名内容";
+                return `# ${index + 1}. ${title}\n\n${result.markdown}`;
+            }).join("\n\n---\n\n");
+            previewJobIds = ids;
+            previewMessage.textContent = `正在预览 ${ids.length} 项；确认前不会改动 Obsidian。`;
+            savePreview.disabled = false;
+            dialog.showModal();
+        } catch (error) {
+            selectionSummary.textContent = "预览读取失败：" + error.message;
+        } finally {
+            updateSelectionControls();
+        }
+    }
+
+    async function approveSelectedJobs(jobIds) {
+        if (!jobIds.length || !window.confirm(`确认把选中的 ${jobIds.length} 项保存到 Obsidian？`)) return;
+        saveSelected.disabled = true;
+        savePreview.disabled = true;
+        previewMessage.textContent = `正在保存 ${jobIds.length} 项到 Obsidian……`;
+        selectionSummary.textContent = `正在保存 ${jobIds.length} 项`;
+        try {
+            var result = await window.ContentHubAPI.post(
+                "/api/ext/knowledge/jobs/approve-selected",
+                { job_ids: jobIds }
+            );
+            if (dialog.open) dialog.close();
+            previewJobIds = [];
+            await loadJobs();
+            selectionSummary.textContent = `已保存 ${result.count} 项到 Obsidian`;
+        } catch (error) {
+            previewMessage.textContent = "保存失败：" + error.message;
+            selectionSummary.textContent = "保存失败：" + error.message;
+            savePreview.disabled = false;
+            updateSelectionControls();
+        }
     }
 
     async function loadJobs() {
         jobsRoot.textContent = "正在读取任务……";
         try {
-            var data = await window.ContentHubAPI.get(
-                trashMode ? "/api/ext/knowledge/trash" : "/api/ext/knowledge/jobs"
-            );
+            var data = await window.ContentHubAPI.get("/api/ext/knowledge/jobs");
             jobsRoot.textContent = "";
-            if (trashMode) retentionDays.value = String(data.retention_days || 7);
+            selectedIds.clear();
+            currentJobs = data.jobs.slice().reverse();
+            jobsById = new Map(currentJobs.map(function (job) { return [job.id, job]; }));
             if (!data.jobs.length) {
                 var empty = document.createElement("div");
                 empty.className = "empty";
-                empty.textContent = trashMode ? "回收站是空的。" : "还没有待处理内容。";
+                empty.textContent = "还没有待处理内容。";
                 jobsRoot.append(empty);
+                updateSelectionControls();
                 return;
             }
-            data.jobs.slice().reverse().forEach(function (job) {
-                jobsRoot.append(renderJob(job, trashMode));
+            currentJobs.forEach(function (job) {
+                jobsRoot.append(renderJob(job));
             });
+            updateSelectionControls();
         } catch (error) {
             jobsRoot.textContent = "任务读取失败：" + error.message;
         }
     }
 
     document.getElementById("refresh").addEventListener("click", loadJobs);
-    savePreview.addEventListener("click", async function () {
-        if (!previewJobId || !window.confirm("确认把当前预览保存到 Obsidian？")) return;
-        savePreview.disabled = true;
-        previewMessage.textContent = "正在保存到 Obsidian……";
+    selectAllJobs.addEventListener("change", function () {
+        selectedIds.clear();
+        jobsRoot.querySelectorAll(".card__selector input").forEach(function (control) {
+            control.checked = selectAllJobs.checked;
+            control.closest(".card").classList.toggle("card--selected", control.checked);
+            if (control.checked) selectedIds.add(control.value);
+        });
+        updateSelectionControls();
+    });
+    previewSelected.addEventListener("click", openSelectedPreviews);
+    saveSelected.addEventListener("click", function () {
+        approveSelectedJobs(selectedJobIds());
+    });
+    deleteSelected.addEventListener("click", async function () {
+        var ids = selectedJobIds();
+        if (!ids.length || !window.confirm(`将选中的 ${ids.length} 项移入回收站，是否继续？`)) return;
+        deleteSelected.disabled = true;
+        selectionSummary.textContent = `正在移动 ${ids.length} 项到回收站`;
         try {
-            await post("/api/ext/knowledge/jobs/" + previewJobId + "/approve");
-            dialog.close();
-            previewJobId = "";
+            var result = await window.ContentHubAPI.post(
+                "/api/ext/knowledge/jobs/trash-selected",
+                { job_ids: ids }
+            );
             await loadJobs();
+            selectionSummary.textContent = `已将 ${result.count} 项移入回收站`;
         } catch (error) {
-            previewMessage.textContent = "保存失败：" + error.message;
-            savePreview.disabled = false;
+            selectionSummary.textContent = "删除失败：" + error.message;
+            updateSelectionControls();
         }
     });
-    showTrash.addEventListener("click", function () {
-        trashMode = !trashMode;
-        showTrash.textContent = trashMode ? "返回任务" : "回收站";
-        showTrash.setAttribute("aria-pressed", String(trashMode));
-        trashSettings.hidden = !trashMode;
-        loadJobs();
-    });
-    retentionDays.addEventListener("change", async function () {
-        try {
-            await window.ContentHubAPI.put("/api/ext/knowledge/trash/settings", {
-                retention_days: Number(retentionDays.value)
-            });
-            await loadJobs();
-        } catch (error) { jobsRoot.textContent = "设置保存失败：" + error.message; }
+    savePreview.addEventListener("click", async function () {
+        approveSelectedJobs(previewJobIds);
     });
     skillDefault.addEventListener("click", async function () {
         try {
@@ -289,7 +330,7 @@
         .catch(function () { setSkillState(true); });
     document.getElementById("closePreview").addEventListener("click", function () {
         dialog.close();
-        previewJobId = "";
+        previewJobIds = [];
     });
     loadJobs();
 }());

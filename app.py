@@ -21,8 +21,11 @@ ACTIVE_PAGES = {
     "inbox",
     "platforms",
     "review",
+    "literature-subscriptions",
     "subscriptions",
+    "trash",
     "wechat-collect",
+    "wechat-subscriptions",
 }
 LOOPBACK_HOSTS = {"127.0.0.1", "localhost", "::1", "testserver"}
 

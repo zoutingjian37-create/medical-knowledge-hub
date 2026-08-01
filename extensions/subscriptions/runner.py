@@ -34,11 +34,15 @@ class SubscriptionRunner:
         subscription = self.store.get(subscription_id)
         return await self._pipeline(subscription).run(subscription)
 
-    async def run_all_manual(self):
+    async def run_all_manual(self, scope: str = "all"):
         results = []
         remaining = self.store.get_automation().daily_limit
         for subscription in self.store.list():
-            if not subscription.enabled or remaining <= 0:
+            if (
+                not subscription.enabled
+                or remaining <= 0
+                or not _matches_scope(subscription.kind, scope)
+            ):
                 continue
             limited = replace(
                 subscription, daily_limit=min(subscription.daily_limit, remaining)
@@ -121,3 +125,13 @@ class WeChatSubscriptionPipeline:
         except Exception as exc:
             self.run_store.update(run.id, status="failed", error=str(exc))
             raise
+
+
+def _matches_scope(kind: str, scope: str) -> bool:
+    if scope == "all":
+        return True
+    if scope == "wechat":
+        return kind == "wechat_account"
+    if scope == "literature":
+        return kind != "wechat_account"
+    raise ValueError(f"unsupported subscription scope: {scope}")

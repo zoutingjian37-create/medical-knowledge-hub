@@ -74,6 +74,44 @@ class SubscriptionRunnerTests(unittest.TestCase):
             self.assertEqual([(first.id, 4), (second.id, 1)], pipeline.ran)
             self.assertNotIn(paused.id, results)
 
+    def test_manual_runs_can_be_scoped_to_wechat_or_literature(self):
+        from extensions.subscriptions.runner import SubscriptionRunner
+        from extensions.subscriptions.store import SubscriptionStore
+
+        class Pipeline:
+            def __init__(self):
+                self.ran = []
+
+            async def run(self, subscription):
+                self.ran.append(subscription.id)
+                return subscription.id
+
+        with TemporaryDirectory() as directory:
+            store = SubscriptionStore(Path(directory))
+            wechat = store.create(
+                kind="wechat_account", name="示例公众号", source="示例公众号"
+            )
+            literature = store.create(
+                kind="feed", name="示例期刊", source="https://example.org/rss"
+            )
+            literature_pipeline = Pipeline()
+            wechat_pipeline = Pipeline()
+            runner = SubscriptionRunner(
+                store=store,
+                literature_pipeline=literature_pipeline,
+                wechat_pipeline=wechat_pipeline,
+            )
+
+            wechat_results = asyncio.run(runner.run_all_manual(scope="wechat"))
+            literature_results = asyncio.run(
+                runner.run_all_manual(scope="literature")
+            )
+
+        self.assertEqual((wechat.id,), wechat_results)
+        self.assertEqual((literature.id,), literature_results)
+        self.assertEqual([wechat.id], wechat_pipeline.ran)
+        self.assertEqual([literature.id], literature_pipeline.ran)
+
 
 class ScheduledTaskScriptTests(unittest.TestCase):
     def test_windows_task_is_single_current_user_task_with_start_when_available(self):

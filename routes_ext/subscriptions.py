@@ -38,6 +38,10 @@ class SubscriptionUpdateRequest(BaseModel):
     zotero_collection: str | None = Field(default=None, max_length=200)
 
 
+class WeChatAccountsRequest(BaseModel):
+    accounts: list[str] = Field(default_factory=list, max_length=100)
+
+
 class AutomationRequest(BaseModel):
     enabled: bool | None = None
     run_time: str | None = Field(default=None, pattern=r"^\d{2}:\d{2}$")
@@ -54,6 +58,7 @@ class ImportRequest(BaseModel):
 
 class RunRequest(BaseModel):
     subscription_id: str | None = None
+    scope: Literal["all", "wechat", "literature"] = "all"
 
 
 class ContinueLoginRequest(BaseModel):
@@ -72,6 +77,25 @@ async def create_subscription(request: SubscriptionCreateRequest):
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return {"subscription": item.to_dict()}
+
+
+@router.get("/subscriptions/wechat-accounts", summary="List default WeChat accounts")
+async def list_wechat_accounts():
+    items = [
+        item.to_dict()
+        for item in SubscriptionStore().list()
+        if item.kind == "wechat_account"
+    ]
+    return {"subscriptions": items}
+
+
+@router.put("/subscriptions/wechat-accounts", summary="Replace default WeChat accounts")
+async def replace_wechat_accounts(request: WeChatAccountsRequest):
+    try:
+        items = SubscriptionStore().sync_wechat_accounts(request.accounts)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {"subscriptions": [item.to_dict() for item in items]}
 
 
 @router.get("/subscriptions/export", summary="Export personal subscription settings")
@@ -148,7 +172,7 @@ async def run_literature_subscriptions(request: RunRequest):
         if request.subscription_id:
             results = (await runner.run_one(request.subscription_id),)
         else:
-            results = await runner.run_all_manual()
+            results = await runner.run_all_manual(scope=request.scope)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except RuntimeError as exc:

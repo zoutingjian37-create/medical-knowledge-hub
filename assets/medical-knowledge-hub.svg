@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">Medical Knowledge Hub</title>
+  <desc id="desc">墨蓝文献与青绿色归档标记</desc>
+  <rect x="16" y="16" width="224" height="224" rx="52" fill="#F9FBFB" stroke="#DCE3E6" stroke-width="4"/>
+  <path d="M72 54h73l29 29v75H72V54Z" fill="none" stroke="#17233A" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M145 55v30h28" fill="none" stroke="#17233A" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M94 105h48M94 132h39" fill="none" stroke="#17233A" stroke-width="11" stroke-linecap="round"/>
+  <rect x="107" y="143" width="90" height="71" rx="16" fill="#087E78"/>
+  <path d="M152 158v31m-13-13 13 13 13-13M130 200h44" fill="none" stroke="#F9FBFB" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

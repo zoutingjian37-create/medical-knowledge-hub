@@ -244,6 +244,13 @@ class KnowledgeCompiler:
             status_before_trash=job.status,
         )
 
+    def trash_many(self, job_ids: list[str]) -> tuple[KnowledgeJob, ...]:
+        unique_ids = tuple(dict.fromkeys(job_ids))
+        jobs = [self.store.get(job_id) for job_id in unique_ids]
+        if any(job.status in {"rejected", "trashed"} for job in jobs):
+            raise PreviewValidationError("selected jobs must be active")
+        return tuple(self.trash(job.id) for job in jobs)
+
     def reject(self, job_id: str) -> KnowledgeJob:
         """Compatibility alias for clients that still use the old endpoint."""
         return self.trash(job_id)
@@ -268,6 +275,23 @@ class KnowledgeCompiler:
             status_before_trash="",
         )
 
+    def restore_many(self, job_ids: list[str]) -> tuple[KnowledgeJob, ...]:
+        unique_ids = tuple(dict.fromkeys(job_ids))
+        jobs = [self.store.get(job_id) for job_id in unique_ids]
+        if any(job.status not in {"rejected", "trashed"} for job in jobs):
+            raise PreviewValidationError("all selected jobs must be in the recycle bin")
+        return tuple(self.restore(job.id) for job in jobs)
+
+    def approve_many(self, job_ids: list[str], vault: Path) -> tuple[ApprovalResult, ...]:
+        unique_ids = tuple(dict.fromkeys(job_ids))
+        jobs = [self.store.get(job_id) for job_id in unique_ids]
+        for job in jobs:
+            if job.status != "preview_ready":
+                raise PreviewValidationError("all selected jobs must be ready for review")
+            if not job.preview_path or not Path(job.preview_path).exists():
+                raise PreviewValidationError("one or more selected previews are missing")
+        return tuple(self.approve(job.id, vault) for job in jobs)
+
     def delete_permanently(self, job_id: str) -> None:
         job = self.store.get(job_id)
         if job.status not in {"rejected", "trashed"}:
@@ -276,6 +300,16 @@ class KnowledgeCompiler:
         (self.previews_root / f"{job.id}.md").unlink(missing_ok=True)
         (self.handoffs_root / f"{job.id}.md").unlink(missing_ok=True)
         self.store.delete_metadata(job.id)
+
+    def delete_permanently_many(self, job_ids: list[str]) -> tuple[str, ...]:
+        """Delete selected recycled jobs after validating the complete selection."""
+        unique_ids = tuple(dict.fromkeys(job_ids))
+        jobs = [self.store.get(job_id) for job_id in unique_ids]
+        if any(job.status not in {"rejected", "trashed"} for job in jobs):
+            raise PreviewValidationError("all selected jobs must be in the recycle bin")
+        for job in jobs:
+            self.delete_permanently(job.id)
+        return tuple(job.id for job in jobs)
 
     def purge_expired_trash(
         self, now: datetime | None = None

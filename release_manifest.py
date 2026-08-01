@@ -38,6 +38,7 @@ INCLUDED_PREFIXES = (
     "routes_ext/",
     "skills/",
     "static/",
+    "tools/",
 )
 EXCLUDED_PARTS = {"__pycache__", ".pytest_cache", "node_modules"}
 

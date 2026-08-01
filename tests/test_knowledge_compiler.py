@@ -340,6 +340,29 @@ class KnowledgeCompilerTests(unittest.TestCase):
             self.store.get(self.job.id)
         self.assertEqual([], list(self.vault.rglob("*.md")))
 
+    def test_bulk_permanent_delete_validates_all_jobs_before_removal(self):
+        from extensions.processing.compiler import PreviewValidationError
+
+        compiler = self._compiler()
+        compiler.trash(self.job.id)
+        second = self.store.create(
+            MarkdownDocument(
+                source_url="https://example.org/second",
+                title="第二篇",
+                author="示例来源",
+                published_at="2026-08-01",
+                markdown="第二篇临时正文。",
+            ),
+            self.cache.put("second", "第二篇临时正文。"),
+            job_id="second",
+        )
+
+        with self.assertRaises(PreviewValidationError):
+            compiler.delete_permanently_many([self.job.id, second.id])
+
+        self.assertEqual("trashed", self.store.get(self.job.id).status)
+        self.assertEqual("pending", self.store.get(second.id).status)
+
     def test_api_lists_jobs_without_exposing_temporary_cache_path(self):
         from fastapi.testclient import TestClient
         from app import app
@@ -382,6 +405,7 @@ class KnowledgeCompilerTests(unittest.TestCase):
                 "/api/ext/knowledge/trash/settings",
                 json={"retention_days": 30},
             )
+            purged = client.post("/api/ext/knowledge/trash/purge", json={})
             workflow = client.put(
                 "/api/ext/knowledge/settings",
                 json={"auto_distill": False},
@@ -398,10 +422,46 @@ class KnowledgeCompilerTests(unittest.TestCase):
         self.assertEqual(self.job.id, trash.json()["jobs"][0]["id"])
         self.assertEqual(7, trash.json()["retention_days"])
         self.assertEqual(30, setting.json()["retention_days"])
+        self.assertEqual(0, purged.json()["count"])
         self.assertFalse(workflow.json()["auto_distill"])
         self.assertEqual("pending", restored.json()["job"]["status"])
         self.assertEqual(204, deleted.status_code)
         self.assertEqual([], empty_trash.json()["jobs"])
+
+    def test_api_permanently_deletes_selected_recycled_jobs(self):
+        from fastapi.testclient import TestClient
+        from app import app
+
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "CONTENT_HUB_CACHE_DIR": str(self.cache.root),
+                    "CONTENT_HUB_STATE_DIR": str(self.store.root),
+                },
+            ),
+            TestClient(app) as client,
+        ):
+            client.post(f"/api/ext/knowledge/jobs/{self.job.id}/trash")
+            restored = client.post(
+                "/api/ext/knowledge/trash/restore-selected",
+                json={"job_ids": [self.job.id]},
+            )
+            moved = client.post(
+                "/api/ext/knowledge/jobs/trash-selected",
+                json={"job_ids": [self.job.id]},
+            )
+            response = client.post(
+                "/api/ext/knowledge/trash/delete-selected",
+                json={"job_ids": [self.job.id, self.job.id]},
+            )
+            trash = client.get("/api/ext/knowledge/trash")
+
+        self.assertEqual(1, restored.json()["count"])
+        self.assertEqual(1, moved.json()["count"])
+        self.assertEqual(200, response.status_code)
+        self.assertEqual(1, response.json()["count"])
+        self.assertEqual([], trash.json()["jobs"])
 
     def test_api_accepts_preview_and_requires_confirmation_before_write(self):
         from fastapi.testclient import TestClient
@@ -434,6 +494,34 @@ class KnowledgeCompilerTests(unittest.TestCase):
         self.assertEqual([], before_approval)
         self.assertEqual(200, approval.status_code)
         self.assertTrue(Path(approval.json()["knowledge_card"]).exists())
+
+    def test_api_approves_selected_ready_previews(self):
+        from fastapi.testclient import TestClient
+        from app import app
+
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "CONTENT_HUB_CACHE_DIR": str(self.cache.root),
+                    "CONTENT_HUB_STATE_DIR": str(self.store.root),
+                    "OBSIDIAN_VAULT_PATH": str(self.vault),
+                },
+            ),
+            TestClient(app) as client,
+        ):
+            client.post(
+                f"/api/ext/knowledge/jobs/{self.job.id}/preview",
+                json={"markdown": _preview(), "wiki_updates": []},
+            )
+            response = client.post(
+                "/api/ext/knowledge/jobs/approve-selected",
+                json={"job_ids": [self.job.id]},
+            )
+
+        self.assertEqual(200, response.status_code)
+        self.assertEqual(1, response.json()["count"])
+        self.assertEqual("approved", self.store.get(self.job.id).status)
 
     def test_api_imports_preview_created_at_handoff_output_path(self):
         handoff = self._compiler().prepare_handoff(self.job.id)
