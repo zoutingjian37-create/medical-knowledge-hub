@@ -104,9 +104,10 @@ OBSIDIAN_VAULT_PATH=D:\你的Obsidian目录
 ## Zotero 与学校登录
 
 1. 启动 Zotero 9，并在左侧选择准备接收文献的目录。订阅中的“Zotero 目录”必须与当前选中目录同名。
-2. 开放获取文献会通过 Zotero 官方 Connector 的 `saveItems` + `saveAttachment` 保存题录和可用 PDF；PDF 上限 50 MB。下载失败时仍保留题录、改用摘要级证据，并在运行记录中显示原因。
-3. 需要学校权限时，运行记录会显示“打开登录页面”。你亲自登录学校或出版社账号，再点击浏览器中的 Zotero Connector 保存。
-4. 回到软件点击“已保存到 Zotero，继续”。软件只按 DOI/PMID 检查题录是否已入库，不读取或保存账号、密码、Cookie 或 Token。
+2. 开放获取文献按“来源已给出的 PDF → Europe PMC → Unpaywall → arXiv/bioRxiv/medRxiv → 开放页面 `citation_pdf_url`”依次查找合法全文，再通过 Zotero 官方 Connector 的 `saveItems` + `saveAttachment` 保存题录和可用 PDF；PDF 上限 50 MB。
+3. Unpaywall 是可选回退来源。在 `.env` 设置 `CONTENT_HUB_UNPAYWALL_EMAIL=你的联系邮箱` 后启用；邮箱只随 Unpaywall API 请求发送，不写入 Git 或文献笔记。
+4. 解析器全部失败时仍保留题录并明确标记摘要级证据。远端 PDF 返回 401/403，或文献本身需要权限时，运行记录会显示“打开登录页面”。你亲自登录学校或出版社账号，再点击浏览器中的 Zotero Connector 保存。
+5. 回到软件点击“已保存到 Zotero，继续”。软件只按 DOI/PMID 检查题录是否已入库，不读取或保存账号、密码、Cookie 或 Token。
 
 Zotero 的官方本地 Web API 目前只读，因此在不配置云端 API Key、也不安装自定义 Zotero 插件的前提下，软件不能静默创建目录。选错目录时会明确暂停，而不是把文献保存到错误位置。
 

@@ -51,8 +51,12 @@ OCR 模型和运行时作为独立 Python 包安装。截图仅用于当前本�
 - [Europe PMC REST API](https://dev.europepmc.org/RestfulWebService)：医学文献检索、PMID/PMCID、摘要和开放全文链接。
 - [Crossref REST API](https://www.crossref.org/documentation/retrieve-metadata/rest-api/)：DOI 与出版元数据补全。
 - [OpenAlex API](https://docs.openalex.org/)：OpenAlex ID、开放获取状态和元数据补全。
+- [Unpaywall API](https://unpaywall.org/products/api)：按 DOI 查找机构仓储或出版商提供的合法开放全文；只有配置联系邮箱后才调用。
 - [Zotero Local API](https://www.zotero.org/support/dev/web_api/v3/local_api)：只读检查本地文库和全文索引。
 - [Zotero Connector HTTP Server](https://www.zotero.org/support/dev/client_coding/connector_http_server)：使用官方 `saveItems` 创建题录，并用 `saveAttachment` 把开放 PDF 上传为 Zotero 管理的附件。
 - RSS 2.0 / Atom：期刊和科研网站的标准增量订阅格式。
+- arXiv、bioRxiv、medRxiv：仅根据其公开文章地址生成官方 PDF 地址，不绕过登录或付费墙。
+
+全文回退链的适配器边界和“首个成功下载即停止”策略参考了 [jannisborn/paperscraper](https://github.com/jannisborn/paperscraper) 的公开设计。Paperscraper 采用 MIT License；本仓库没有捆绑该项目，也没有复制其下载器源文件，而是使用上述官方 API 独立实现最小适配器。
 
 学校或出版社登录始终由用户在浏览器完成。本项目不接收或保存账号、密码、Cookie、Token。

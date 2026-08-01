@@ -65,10 +65,12 @@ class MetadataEnricher:
         response.raise_for_status()
         payload = response.json()
         location = payload.get("best_oa_location") or {}
+        pdf_url = str(location.get("pdf_url") or "").strip()
         identifier = str(payload.get("id") or "").rstrip("/").rsplit("/", 1)[-1]
         return replace(
             item,
             openalex_id=item.openalex_id or identifier,
-            pdf_url=item.pdf_url or str(location.get("pdf_url") or "").strip(),
+            pdf_url=item.pdf_url or pdf_url,
             open_access=item.open_access or bool(payload.get("open_access", {}).get("is_oa")),
+            pdf_source=item.pdf_source or ("openalex" if pdf_url else ""),
         )

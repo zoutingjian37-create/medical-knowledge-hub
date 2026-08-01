@@ -15,6 +15,10 @@ DEFAULT_ZOTERO_URL = "http://127.0.0.1:23119"
 MAX_PDF_BYTES = 50 * 1024 * 1024
 
 
+class SchoolLoginRequired(RuntimeError):
+    """The remote PDF endpoint requires the user's browser login."""
+
+
 class ZoteroGateway:
     def __init__(
         self,
@@ -22,11 +26,13 @@ class ZoteroGateway:
         base_url: str = DEFAULT_ZOTERO_URL,
         resolver=None,
         sleep=asyncio.sleep,
+        fulltext=None,
     ):
         self._client = client or httpx.AsyncClient()
         self._base_url = base_url.rstrip("/")
         self._resolver = resolver
         self._sleep = sleep
+        self._fulltext = fulltext
 
     async def status(self) -> dict:
         try:
@@ -77,6 +83,43 @@ class ZoteroGateway:
         session = f"medical-knowledge-hub-{uuid4().hex}"
         connector_item_id = f"mkh-{uuid4().hex}"
         connector_item = to_connector_item(item, connector_item_id)
+        pdf_content = None
+        resolved_pdf_url = ""
+        pdf_error = ""
+        pdf_source = ""
+        attempted_urls = set()
+        login_error = ""
+        candidate = item
+        while candidate.pdf_url and len(attempted_urls) < 6:
+            attempted_urls.add(candidate.pdf_url)
+            try:
+                pdf_content, resolved_pdf_url = await self._download_pdf(
+                    candidate.pdf_url
+                )
+                pdf_source = candidate.pdf_source
+                break
+            except SchoolLoginRequired as exc:
+                login_error = _error_text(exc)
+            except (httpx.HTTPError, OSError, RuntimeError, ValueError) as exc:
+                pdf_error = _error_text(exc)
+            if self._fulltext is None:
+                break
+            try:
+                candidate = await self._fulltext.resolve(
+                    item, skip_urls=attempted_urls
+                )
+            except (httpx.HTTPError, OSError, RuntimeError, ValueError) as exc:
+                pdf_error = _error_text(exc)
+                break
+            if not candidate.pdf_url or candidate.pdf_url in attempted_urls:
+                break
+        if pdf_content is None and login_error:
+            return {
+                "status": "waiting_school_login",
+                "url": item.url,
+                "doi": item.doi,
+                "pdf_error": login_error,
+            }
         try:
             response = await self._client.post(
                 f"{self._base_url}/connector/saveItems",
@@ -93,10 +136,8 @@ class ZoteroGateway:
             return {"status": "zotero_unavailable", "detail": str(exc)}
 
         pdf_saved = False
-        pdf_error = ""
-        if item.pdf_url:
+        if pdf_content is not None:
             try:
-                pdf_content, resolved_pdf_url = await self._download_pdf(item.pdf_url)
                 metadata = {
                     "sessionID": session,
                     "parentItemID": connector_item_id,
@@ -131,6 +172,7 @@ class ZoteroGateway:
             "full_text": full_text,
             "pdf_saved": pdf_saved,
             "pdf_error": pdf_error,
+            "pdf_source": pdf_source,
         }
 
     async def _download_pdf(self, url: str) -> tuple[bytes, str]:
@@ -147,6 +189,10 @@ class ZoteroGateway:
                 follow_redirects=False,
                 timeout=90,
             )
+            if response.status_code in {401, 403}:
+                raise SchoolLoginRequired(
+                    f"PDF requires browser or school login (HTTP {response.status_code})"
+                )
             if response.status_code in {301, 302, 303, 307, 308}:
                 location = response.headers.get("location", "")
                 if not location:

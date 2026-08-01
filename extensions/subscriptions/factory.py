@@ -6,6 +6,7 @@ from extensions.processing.compiler import KnowledgeCompiler
 from extensions.processing.job_queue import KnowledgeJobQueue
 
 from .discovery import DefaultLiteratureDiscoverer
+from .fulltext import FullTextResolverChain
 from .pipeline import LiteraturePipeline
 from .runner import SubscriptionRunner, WeChatSubscriptionPipeline
 from .runs import LiteratureRunStore
@@ -18,9 +19,10 @@ def build_subscription_runner() -> SubscriptionRunner:
     runs = LiteratureRunStore(store.root)
     queue = KnowledgeJobQueue()
     compiler = KnowledgeCompiler()
+    fulltext = FullTextResolverChain()
     literature = LiteraturePipeline(
-        discoverer=DefaultLiteratureDiscoverer(),
-        zotero=ZoteroGateway(),
+        discoverer=DefaultLiteratureDiscoverer(fulltext=fulltext),
+        zotero=ZoteroGateway(fulltext=fulltext),
         queue=queue,
         compiler=compiler,
         run_store=runs,

@@ -38,6 +38,7 @@ Windows 单任务 / 手动立即运行
   → 已启用订阅
   → RSS/Atom 或 Europe PMC
   → Crossref/OpenAlex 元数据补全
+  → 合法全文解析链：Europe PMC → Unpaywall → 医学预印本 → citation_pdf_url
   → DOI / PMID / OpenAlex ID / 规范化 URL 去重
   → Zotero 官方 Connector
      ├─ 开放获取：保存题录与可用 PDF
@@ -65,7 +66,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 `
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install-platform-engines.ps1
 ```
 
-在浏览器安装并连接 OpenCLI Browser Bridge；在需要的平台网页保持正常登录。微信电脑版也必须由用户预先登录。编辑 `.env`，确认 `OBSIDIAN_VAULT_PATH`、`OPENCLI_RUNTIME_DIR`、`CONTENT_HUB_CODEX_CLI` 都指向真实路径。
+在浏览器安装并连接 OpenCLI Browser Bridge；在需要的平台网页保持正常登录。微信电脑版也必须由用户预先登录。编辑 `.env`，确认 `OBSIDIAN_VAULT_PATH`、`OPENCLI_RUNTIME_DIR`、`CONTENT_HUB_CODEX_CLI` 都指向真实路径。需要 Unpaywall DOI 开放全文回退时，另外设置 `CONTENT_HUB_UNPAYWALL_EMAIL`；不要把真实 `.env` 提交 Git。
 
 启动 Zotero，打开本地 API，并用 Connector 完成一次测试保存。`CONTENT_HUB_STATE_DIR` 默认是 `D:\Codex\state\medical-knowledge-hub`；订阅、运行记录、登录接力和预览都在这里，不得加入 Git。`CONTENT_HUB_MANAGE_TASK_SCHEDULER=1` 允许应用同步唯一的当前用户任务 `Medical Knowledge Hub Daily`。
 
@@ -123,6 +124,7 @@ Invoke-RestMethod http://127.0.0.1:5000/api/ext/zotero/status
 - `extensions/processing/job_queue.py`：广告清理、去重与入队。
 - `extensions/processing/compiler.py`：Codex 预览、路径校验和确认写入。
 - `extensions/subscriptions/`：订阅存储、发现、去重、Zotero、流水线、调度和运行状态。
+- `extensions/subscriptions/fulltext.py`：Europe PMC、Unpaywall、预印本和开放页面 PDF 的有序解析链。
 - `routes_ext/subscriptions.py`：订阅 CRUD、自动化、运行、登录接力与 Zotero 状态 API。
 - `static/inbox.html`：五平台手动链接 UI。
 - `static/wechat-subscriptions.html`：公众号名称批量编辑、启停与立即运行 UI。

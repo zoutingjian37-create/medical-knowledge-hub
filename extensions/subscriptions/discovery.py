@@ -38,6 +38,7 @@ class LiteratureItem:
     openalex_id: str = ""
     pdf_url: str = ""
     open_access: bool = False
+    pdf_source: str = ""
 
     @property
     def identity_keys(self) -> tuple[str, ...]:
@@ -111,7 +112,7 @@ class EuropePMCClient:
 class DefaultLiteratureDiscoverer:
     """Use a declared feed first and Europe PMC for structured queries."""
 
-    def __init__(self, feed=None, europe_pmc=None, enricher=None):
+    def __init__(self, feed=None, europe_pmc=None, enricher=None, fulltext=None):
         self.feed = feed or FeedClient()
         self.europe_pmc = europe_pmc or EuropePMCClient()
         if enricher is None:
@@ -119,6 +120,11 @@ class DefaultLiteratureDiscoverer:
 
             enricher = MetadataEnricher()
         self.enricher = enricher
+        if fulltext is None:
+            from .fulltext import FullTextResolverChain
+
+            fulltext = FullTextResolverChain()
+        self.fulltext = fulltext
 
     async def discover(self, subscription: Subscription) -> tuple[LiteratureItem, ...]:
         if subscription.source.startswith(("http://", "https://")):
@@ -130,7 +136,11 @@ class DefaultLiteratureDiscoverer:
                 items = await self.europe_pmc.discover(subscription)
         else:
             items = await self.europe_pmc.discover(subscription)
-        return tuple([await self.enricher.enrich(item) for item in items])
+        resolved = []
+        for item in items:
+            enriched = await self.enricher.enrich(item)
+            resolved.append(await self.fulltext.resolve(enriched))
+        return tuple(resolved)
 
 
 def build_literature_query(subscription: Subscription) -> str:
@@ -268,6 +278,7 @@ def _from_europe_pmc(row: dict) -> LiteratureItem:
         openalex_id=str(row.get("openAlexId") or "").strip(),
         pdf_url=pdf_url,
         open_access=str(row.get("isOpenAccess") or "").upper() == "Y",
+        pdf_source="europe_pmc" if pdf_url else "",
     )
 
 
