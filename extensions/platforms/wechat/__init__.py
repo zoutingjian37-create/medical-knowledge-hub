@@ -1,4 +1,4 @@
-"""WeChat public discovery, UI fallback, and public-link parsing boundaries."""
+"""Desktop discovery, public-search compatibility, and link parsing boundaries."""
 
 from .adapter import WeChatAdapter
 from .discovery import (

@@ -81,8 +81,8 @@ class OpenCLIAdapterTests(unittest.TestCase):
                     "20",
                 ): [
                     {
-                        "title": "统计之光",
-                        "author": "统计之光",
+                        "title": "示例医学方法号",
+                        "author": "示例医学方法号",
                         "url": "https://space.bilibili.com/123456",
                     }
                 ],
@@ -166,7 +166,7 @@ class OpenCLIAdapterTests(unittest.TestCase):
             {
                 detail: [
                     {"field": "title", "value": "回归分析"},
-                    {"field": "author", "value": "统计之光"},
+                    {"field": "author", "value": "示例医学方法号"},
                     {"field": "description", "value": "用实例讲解回归模型"},
                     {"field": "cover", "value": "https://i0.hdslb.com/cover.jpg"},
                 ]
@@ -184,7 +184,7 @@ class OpenCLIAdapterTests(unittest.TestCase):
 
         self.assertEqual("video", normalized.content_type)
         self.assertEqual("回归分析", normalized.title)
-        self.assertEqual("统计之光", normalized.creator_name)
+        self.assertEqual("示例医学方法号", normalized.creator_name)
         self.assertIn("回归模型", normalized.body_text)
         self.assertEqual(["https://i0.hdslb.com/cover.jpg"], normalized.images)
 
@@ -201,7 +201,7 @@ class OpenCLIAdapterTests(unittest.TestCase):
                     "true",
                     "--download-images",
                     "false",
-                ): "# Logistic 回归\n\n作者：统计之光\n\n这是视频说明。",
+                ): "# Logistic 回归\n\n作者：示例医学方法号\n\n这是视频说明。",
             }
         )
         adapter = OpenCLIAdapter("douyin", runner=runner)
@@ -226,7 +226,7 @@ class OpenCLIAdapterTests(unittest.TestCase):
                     "---\n\n"
                     "开启读屏标签\n\n推荐\n\n"
                     "发布时间：2026-06-01 20:41\n\n"
-                    "[![左岸同学（统计之光）](https://example.com/avatar.jpg)]"
+                    "[![示例研究员](https://example.com/avatar.jpg)]"
                     "(https://www.douyin.com/user/example)\n\n"
                     "## 推荐视频\n其他页面内容"
                 ),
@@ -236,7 +236,7 @@ class OpenCLIAdapterTests(unittest.TestCase):
 
         normalized = adapter.normalize_item(raw)
 
-        self.assertEqual("左岸同学（统计之光）", normalized.creator_name)
+        self.assertEqual("示例研究员", normalized.creator_name)
         self.assertEqual("2026-06-01", normalized.published_at.date().isoformat())
         self.assertIn("医学统计课程介绍", normalized.body_text)
         self.assertNotIn("开启读屏标签", normalized.body_text)

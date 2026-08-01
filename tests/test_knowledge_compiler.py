@@ -96,15 +96,38 @@ class KnowledgeCompilerTests(unittest.TestCase):
 
         return KnowledgeCompiler(store=self.store, cache=self.cache)
 
+    def test_wechat_skill_output_contract_matches_preview_validator(self):
+        from extensions.processing.compiler import REQUIRED_SECTIONS
+
+        contract = (
+            Path(__file__).parents[1]
+            / "skills"
+            / "distill-medical-wechat"
+            / "references"
+            / "output-contract.md"
+        ).read_text("utf-8")
+
+        for section in REQUIRED_SECTIONS:
+            self.assertIn(f"## {section}", contract)
+
     def test_handoff_references_source_without_copying_article_body(self):
         result = self._compiler().prepare_handoff(self.job.id)
 
         handoff = result.handoff_path.read_text("utf-8")
-        self.assertIn("$distill-medical-literature", handoff)
+        self.assertIn("$distill-medical-wechat", handoff)
         self.assertIn(SOURCE_URL, handoff)
         self.assertNotIn("只允许临时保存的清洗后正文", handoff)
         self.assertIn(result.mode, {"desktop", "cli"})
         self.assertEqual("handoff_ready", self.store.get(self.job.id).status)
+
+    def test_literature_job_uses_the_literature_skill(self):
+        self.store.update(self.job.id, platform="literature")
+
+        result = self._compiler().prepare_handoff(self.job.id)
+
+        handoff = result.handoff_path.read_text("utf-8")
+        self.assertIn("$distill-medical-literature", handoff)
+        self.assertNotIn("$distill-medical-wechat", handoff)
 
     def test_handoff_uses_configured_vault_page_list(self):
         page = self.vault / "研究要素" / "CHARLS.md"

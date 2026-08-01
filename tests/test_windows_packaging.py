@@ -30,6 +30,7 @@ class WindowsPackagingTests(unittest.TestCase):
 
         self.assertIn("app.py", manifest)
         self.assertIn("skills/distill-medical-literature/SKILL.md", manifest)
+        self.assertIn("skills/distill-medical-wechat/SKILL.md", manifest)
         self.assertIn("install-automation-task.ps1", manifest)
         self.assertIn("extensions/subscriptions/worker.py", manifest)
         self.assertIn("install.ps1", manifest)
@@ -51,6 +52,7 @@ class WindowsPackagingTests(unittest.TestCase):
         self.assertIn(r"D:\Codex\medical-knowledge-hub", installer)
         self.assertIn(r"D:\Codex\venvs\medical-knowledge-hub", installer)
         self.assertIn("distill-medical-literature", installer)
+        self.assertIn("distill-medical-wechat", installer)
         self.assertIn("CONTENT_HUB_MANAGE_TASK_SCHEDULER", installer)
         self.assertIn("install-automation-task.ps1", installer)
         self.assertIn("CreateShortcut", installer)
@@ -95,7 +97,7 @@ class WindowsPackagingTests(unittest.TestCase):
 
     def test_application_reports_the_release_version(self):
         app_source = (ROOT / "app.py").read_text("utf-8")
-        self.assertIn('APP_VERSION = "1.1.1"', app_source)
+        self.assertIn('APP_VERSION = "1.2.0"', app_source)
         self.assertIn("version=APP_VERSION", app_source)
 
     def test_daily_worker_purges_expired_recycle_bin_items(self):

@@ -78,9 +78,10 @@ class KnowledgeCompiler:
         handoff_path = self.handoffs_root / f"{job.id}.md"
         output_path = self.previews_root / f"{job.id}.md"
         wiki_pages = _wiki_page_list()
+        skill_name = _distillation_skill(job.platform)
         handoff = (
             "# Medical Knowledge Hub 提炼任务\n\n"
-            "使用 `$distill-medical-literature` 处理本任务。\n\n"
+            f"使用 `${skill_name}` 处理本任务。\n\n"
             f"- 任务编号：`{job.id}`\n"
             f"- 原文链接：{job.source_url}\n"
             f"- 标题：{job.title}\n"
@@ -96,7 +97,7 @@ class KnowledgeCompiler:
         self.store.update(job_id, status="handoff_ready")
         mode = "cli" if _codex_cli_available() else "desktop"
         instruction = (
-            "请使用 $distill-medical-literature 处理这个任务文件并把结果写到其中指定的预览位置："
+            f"请使用 ${skill_name} 处理这个任务文件并把结果写到其中指定的预览位置："
             f"{handoff_path}"
         )
         return HandoffResult(mode, instruction, handoff_path, output_path)
@@ -328,6 +329,14 @@ def _validate_preview(
                 raise PreviewValidationError(
                     "new research pattern does not meet the creation threshold"
                 )
+
+
+def _distillation_skill(platform: str) -> str:
+    return (
+        "distill-medical-literature"
+        if str(platform).strip().casefold() == "literature"
+        else "distill-medical-wechat"
+    )
 
 
 def _codex_cli_available() -> bool:

@@ -157,17 +157,17 @@ class WeChatPipelineAccountTests(unittest.TestCase):
 
 
 class WeChatDiscoveryRouteTests(unittest.TestCase):
-    def test_public_search_is_the_default_discovery_mode(self):
+    def test_visual_desktop_is_the_default_discovery_mode(self):
         from fastapi.testclient import TestClient
         from app import app
 
         class Discoverer:
-            async def discover(self, accounts, per_account=10):
+            def discover(self, accounts, per_account=10, date_from=None, date_to=None):
                 return (PUBLIC_URL,)
 
         with (
             patch(
-                "routes_ext.platforms.OpenCLIWeChatDiscoverer",
+                "routes_ext.platforms.WeChatUIDiscoverer",
                 return_value=Discoverer(),
                 create=True,
             ),
@@ -179,20 +179,24 @@ class WeChatDiscoveryRouteTests(unittest.TestCase):
             )
 
         self.assertEqual(200, response.status_code)
-        self.assertEqual({"links": [PUBLIC_URL], "mode": "public"}, response.json())
+        self.assertEqual({"links": [PUBLIC_URL], "mode": "wechat_ui"}, response.json())
 
-    def test_desktop_wechat_ui_is_an_explicit_fallback(self):
+    def test_explicit_date_range_is_forwarded_to_desktop_discovery(self):
         from fastapi.testclient import TestClient
         from app import app
 
         class Discoverer:
-            def discover(self, accounts, per_account=10):
+            def discover(self, accounts, per_account=10, date_from=None, date_to=None):
+                self.date_from = date_from
+                self.date_to = date_to
                 return (PUBLIC_URL,)
+
+        discoverer = Discoverer()
 
         with (
             patch(
                 "routes_ext.platforms.WeChatUIDiscoverer",
-                return_value=Discoverer(),
+                return_value=discoverer,
             ),
             TestClient(app) as client,
         ):
@@ -202,11 +206,15 @@ class WeChatDiscoveryRouteTests(unittest.TestCase):
                     "accounts": ["示例医学公众号"],
                     "per_account": 1,
                     "mode": "wechat_ui",
+                    "date_from": "2026-07-30",
+                    "date_to": "2026-07-31",
                 },
             )
 
         self.assertEqual(200, response.status_code)
         self.assertEqual("wechat_ui", response.json()["mode"])
+        self.assertEqual("2026-07-30", discoverer.date_from.isoformat())
+        self.assertEqual("2026-07-31", discoverer.date_to.isoformat())
 
     def test_open_source_page_has_no_personal_subscription_defaults(self):
         from fastapi.testclient import TestClient
@@ -215,8 +223,8 @@ class WeChatDiscoveryRouteTests(unittest.TestCase):
         with TestClient(app) as client:
             html = client.get("/wechat-collect.html").text
 
-        self.assertIn("快速公开搜索", html)
-        self.assertIn("微信界面补全", html)
+        self.assertIn("输入公众号名称和日期范围", html)
+        self.assertIn("mode: \"wechat_ui\"", html)
         self.assertNotIn("示例医学统计号", html)
         self.assertNotIn("示例公共数据库号", html)
         self.assertNotIn("示例论文分析号", html)

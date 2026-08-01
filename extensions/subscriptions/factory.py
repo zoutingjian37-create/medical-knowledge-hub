@@ -1,6 +1,6 @@
 """Construct the production subscription runner from existing small adapters."""
 
-from extensions.platforms.wechat.discovery import OpenCLIWeChatDiscoverer
+from extensions.platforms.wechat.discovery import WeChatUIDiscoverer
 from extensions.platforms.wechat.parser import OpenCLIWeChatParser
 from extensions.processing.compiler import KnowledgeCompiler
 from extensions.processing.job_queue import KnowledgeJobQueue
@@ -24,10 +24,11 @@ def build_subscription_runner() -> SubscriptionRunner:
         queue=queue,
         compiler=compiler,
         run_store=runs,
+        subscription_store=store,
         state_root=store.root,
     )
     wechat = WeChatSubscriptionPipeline(
-        discoverer=OpenCLIWeChatDiscoverer(),
+        discoverer=WeChatUIDiscoverer(),
         parser=OpenCLIWeChatParser(),
         queue=queue,
         compiler=compiler,

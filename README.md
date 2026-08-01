@@ -8,19 +8,19 @@
 
 ```text
 手动公开链接 / 公众号 / 期刊 / RSS / 文献检索要求
-  → OpenCLI、RSS/Atom 或 Europe PMC 发现候选内容
+  → 微信视觉发现、OpenCLI、RSS/Atom 或 Europe PMC 获取候选内容
   → 日期、关键词、广告和重复项代码过滤
   → 文献题录与可用 PDF 保存到 Zotero
   → 创建临时提炼任务
-  → Codex + distill-medical-literature 提炼
+  → Codex + 对应来源的提炼 Skill
   → 用户查看变更预览
   → 确认后写入 Obsidian
   → 删除临时正文；PDF 留在 Zotero
 ```
 
-公众号名称查找默认走 OpenCLI 的公开微信搜索，并用 Browser Bridge 把搜索结果安全解析为 `mp.weixin.qq.com` 链接；采集时还会核对正文作者，避免同名或搜索误命中。它不操作桌面微信，也不接收 Cookie、Token 或平台密码。
+公众号名称查找默认操作用户已经登录的微信电脑版：识别搜索框、精确公众号、文章列表和日期，打开入选文章后点击“复制链接”。程序只保留公开的 `mp.weixin.qq.com` 链接，不读取 Cookie、Token、聊天数据库或账号密码。链接交给独立 OpenCLI 解析器后，仍会核对正文作者，避免同名或搜索误命中。
 
-`pywechat127` 的微信 UI 发现器只保留为用户明确选择的慢速备用通道。该通道需要逐篇收藏、再从收藏中复制链接，受微信界面版本和窗口布局影响，不能视为稳定或完整的公众号历史接口。公开搜索同样可能受收录范围和验证页影响；失败会明确报错，不会把不完整结果伪装成成功。
+视觉发现借鉴 `pywechat` 将微信交互封装为代码驱动 RPA 的边界，但当前微信 4.1 的 UI Automation 树不可见，因此本项目改用本地中文 OCR、文字锚点、相对窗口位置和状态复核。`pywechat127` 仅保留为旧版微信兼容后端，不是默认路径。微信升级后如果文字或布局变化，程序会保存诊断截图并明确失败，不会继续盲点。
 
 ## 五分钟复现
 
@@ -32,7 +32,8 @@
 - Git、GitHub CLI 和已登录的 Codex CLI
 - Obsidian 及一个已经创建的 Vault
 - Zotero 9 和官方 Zotero Connector；文献订阅需要先启动一次 Zotero
-- OpenCLI 1.8.6 与 Browser Bridge；公众号公开查找及知乎、B站、小红书、抖音读取均会复用它
+- 微信电脑版 4.x，使用前由用户完成登录；安装器会安装本地 OCR 与窗口自动化依赖
+- OpenCLI 1.8.6 与 Browser Bridge；公众号链接解析及知乎、B站、小红书、抖音读取会复用它
 
 ### 2. 克隆并安装
 
@@ -76,17 +77,17 @@ OBSIDIAN_VAULT_PATH=D:\你的Obsidian目录
 
 ## 按公众号名称发现文章
 
-1. 打开“公众号文章发现”。
-2. 每行输入一个公众号名称，选择“快速公开搜索（推荐）”。
-3. 程序通过 OpenCLI 搜索公开候选文章并解析真实微信链接，不控制桌面微信。
-4. 选择采集后，程序解析正文、校验正文作者并进入统一待处理列表。
-5. 只有需要补查公开搜索未收录内容时，才手动选择“微信界面补全（慢速备用）”。
+1. 先登录微信电脑版，再打开“公众号文章”。
+2. 每行输入一个完整公众号名称，选择开始日期、结束日期和数量上限。
+3. 程序进入微信“搜一搜”，精确匹配公众号，并在“文章”页识别日期。
+4. `今天`、`昨天`、`星期几` 和 `月日` 都会先转换为北京时间的具体日期；打开文章后用正文完整日期复核。
+5. 程序复制公开链接，按“公众号 + 具体发布日期 + 规范化链接”去重，再解析正文并进入统一待处理列表。
 
 ## 每日订阅
 
 打开“订阅中心”，可以新增、暂停、恢复、删除或立即运行以下来源：
 
-- 微信公众号名称：复用 OpenCLI 公开搜索，适合发现已被公开搜索收录的候选文章，不保证完整历史。
+- 微信公众号名称：使用已登录的微信电脑版发现文章；每日任务按上次成功日期继续，最终以具体发布日期去重。
 - 期刊：优先使用主页声明的 RSS/Atom；没有 Feed 时使用 ISSN 或期刊名查询 Europe PMC。
 - RSS/Atom：适合每日轮询，因为它只读取新增条目，不需要控制浏览器或桌面微信。
 - 文献检索：使用 Europe PMC/PubMed 风格的结构化查询，可附加关键词和自然语言筛选要求。
@@ -106,7 +107,7 @@ Zotero 的官方本地 Web API 目前只读，因此在不配置云端 API Key�
 
 ## 哪些步骤消耗 Codex token
 
-RSS/Atom、Europe PMC 查询、日期/关键词筛选、去重、Zotero 保存、运行调度和 Obsidian 审批均由本地代码执行，不调用大模型。只有入选文献进入 `distill-medical-literature` 提炼时消耗 Codex token；每日上限用于控制这部分成本。
+微信窗口识别与公开链接复制、OpenCLI 解析、RSS/Atom、Europe PMC 查询、日期/关键词筛选、去重、Zotero 保存、运行调度和 Obsidian 审批均由本地代码执行，不调用大模型。只有入选内容进入 `distill-medical-wechat` 或 `distill-medical-literature` 提炼时消耗 Codex token；每日上限用于控制这部分成本。
 
 ## 测试
 
@@ -136,12 +137,18 @@ node --test tests\static_assets.test.js
 
 - 执行 `install-platform-engines.ps1`。
 - 检查 `OPENCLI_RUNTIME_DIR` 和 Browser Bridge 状态。
-- 如果微信结果出现临时验证页，程序会等待后重试一次；仍失败时请稍后再运行，不要频繁刷新。
+- 微信链接已经复制但正文解析失败时，检查 OpenCLI 运行时和 Browser Bridge；可以把同一公开链接粘贴到“粘贴链接”重试。
+
+### 微信没有找到搜索框或文章日期
+
+- 确认微信电脑版已经登录，并保持主窗口可见。
+- 运行期间不要操作微信窗口或修改系统缩放。
+- 查看 `D:\Codex\state\medical-knowledge-hub\diagnostics` 中最新诊断截图；微信升级后可据此更新文字锚点，不需要重写解析、去重或 Obsidian 流程。
 
 ### Codex 无法生成预览
 
 - 确认 Codex CLI 已登录。
-- 检查 `CONTENT_HUB_CODEX_CLI` 和 `distill-medical-literature` Skill。
+- 检查 `CONTENT_HUB_CODEX_CLI`、`distill-medical-wechat` 和 `distill-medical-literature` Skill。
 
 ### Zotero 显示未连接或等待目录
 

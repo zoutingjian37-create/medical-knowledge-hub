@@ -1,4 +1,4 @@
-"""Public-search discovery with an optional desktop WeChat UI fallback.
+"""Desktop WeChat discovery with an explicit public-search compatibility mode.
 
 The public API returns URLs only. It never accepts or exposes WeChat backend
 credentials, message databases, or account tokens.
@@ -64,11 +64,19 @@ class PyWeixinLinkBackend:
 
 
 class WeChatUIDiscoverer:
-    def __init__(self, backend: Optional[PyWeixinLinkBackend] = None):
-        self._backend = backend or PyWeixinLinkBackend()
+    def __init__(self, backend=None):
+        if backend is None:
+            from .desktop_vision import WeChatVisualLinkBackend
+
+            backend = WeChatVisualLinkBackend()
+        self._backend = backend
 
     def discover(
-        self, accounts: Iterable[str], per_account: int = 10
+        self,
+        accounts: Iterable[str],
+        per_account: int = 10,
+        date_from=None,
+        date_to=None,
     ) -> tuple[str, ...]:
         if per_account < 1:
             raise ValueError("per_account must be at least 1")
@@ -78,7 +86,23 @@ class WeChatUIDiscoverer:
             account = str(account).strip()
             if not account:
                 continue
-            for candidate in self._backend.collect_links(account, per_account):
+            try:
+                if date_from is None and date_to is None:
+                    candidates = self._backend.collect_links(account, per_account)
+                else:
+                    candidates = self._backend.collect_links(
+                        account,
+                        per_account,
+                        date_from=date_from,
+                        date_to=date_to,
+                    )
+            except WeChatDiscoveryError:
+                raise
+            except RuntimeError as exc:
+                raise WeChatDiscoveryError(
+                    f"Desktop WeChat discovery failed for {account}: {exc}"
+                ) from exc
+            for candidate in candidates:
                 try:
                     public_url = canonicalize_public_article_url(candidate)
                 except ValueError:

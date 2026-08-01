@@ -14,7 +14,7 @@ class WeChatPipeline:
         self._parser = parser
         self._queue = queue
 
-    async def run(self, accounts, per_account=10):
+    async def run(self, accounts, per_account=10, date_from=None, date_to=None):
         results = []
         seen = set()
         for raw_account in accounts:
@@ -25,6 +25,8 @@ class WeChatPipeline:
                 self._discoverer,
                 [account],
                 per_account,
+                date_from,
+                date_to,
             )
             for link in links:
                 if link in seen:
@@ -38,11 +40,15 @@ class WeChatPipeline:
         return tuple(results)
 
 
-async def _discover(discoverer, accounts, per_account):
+async def _discover(discoverer, accounts, per_account, date_from=None, date_to=None):
     method = discoverer.discover
+    arguments = (accounts, per_account)
+    keywords = {}
+    if date_from is not None or date_to is not None:
+        keywords = {"date_from": date_from, "date_to": date_to}
     if inspect.iscoroutinefunction(method):
-        return await method(accounts, per_account)
-    return await asyncio.to_thread(method, accounts, per_account)
+        return await method(*arguments, **keywords)
+    return await asyncio.to_thread(method, *arguments, **keywords)
 
 
 def _account_key(value):

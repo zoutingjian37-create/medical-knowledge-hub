@@ -29,7 +29,8 @@ The application runs locally on Windows. The user may paste a public link or man
 ## Capabilities and Constraints
 
 - Manual public-link parsing is the dependable entry point for all five platforms.
-- WeChat public-account discovery defaults to OpenCLI public search and redirect resolution; desktop WeChat UI discovery is an explicit slow fallback and may break when WeChat changes.
+- WeChat public-account discovery defaults to code-driven control of an already logged-in desktop WeChat session. Local OCR identifies the exact account, article rows, concrete publication dates, and the copy-link action; OpenCLI parses only the resulting public link.
+- WeChat relative labels are normalized to Beijing calendar dates before filtering. The final discovery marker combines account, concrete publication date, and canonical public URL.
 - The application must not request or expose WeChat Cookie, Token, chat databases, or other personal credentials.
 - Non-WeChat platform reading can use OpenCLI, while collection, filtering, deduplication, review, and Obsidian archiving remain product-owned workflow stages.
 - Saving to Obsidian is review-gated; parsing alone must not silently archive content.

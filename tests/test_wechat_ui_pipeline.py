@@ -327,8 +327,8 @@ class WeChatDiscoveryApiTests(unittest.TestCase):
             response = client.get("/wechat-collect.html")
 
         self.assertEqual(200, response.status_code)
-        self.assertIn("公众号文章发现", response.text)
-        self.assertIn("快速公开搜索", response.text)
+        self.assertIn("公众号文章", response.text)
+        self.assertIn("具体年月日", response.text)
         self.assertNotIn("示例医学统计号", response.text)
         self.assertIn("/api/ext/platforms/wechat/discover", response.text)
         self.assertIn("/api/ext/platforms/wechat/collect", response.text)

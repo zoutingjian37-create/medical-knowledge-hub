@@ -2,6 +2,7 @@
 
 import asyncio
 from dataclasses import asdict
+from datetime import date
 import inspect
 from typing import Literal
 
@@ -39,7 +40,9 @@ class PlatformFetchRequest(BaseModel):
 class WeChatDiscoverRequest(BaseModel):
     accounts: list[str] = Field(min_length=1, max_length=20)
     per_account: int = Field(default=10, ge=1, le=50)
-    mode: Literal["public", "wechat_ui"] = "public"
+    mode: Literal["public", "wechat_ui"] = "wechat_ui"
+    date_from: date | None = None
+    date_to: date | None = None
 
 
 @router.post(
@@ -50,7 +53,11 @@ async def discover_wechat_links(request: WeChatDiscoverRequest):
     discoverer = _wechat_discoverer(request.mode)
     try:
         links = await _discover_links(
-            discoverer, request.accounts, request.per_account
+            discoverer,
+            request.accounts,
+            request.per_account,
+            request.date_from,
+            request.date_to,
         )
     except WeChatDiscoveryError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
@@ -68,7 +75,15 @@ async def collect_wechat_articles(request: WeChatDiscoverRequest):
         queue=KnowledgeJobQueue(),
     )
     try:
-        results = await pipeline.run(request.accounts, request.per_account)
+        if request.date_from is None and request.date_to is None:
+            results = await pipeline.run(request.accounts, request.per_account)
+        else:
+            results = await pipeline.run(
+                request.accounts,
+                request.per_account,
+                date_from=request.date_from,
+                date_to=request.date_to,
+            )
     except (RuntimeError, ValueError, WeChatDiscoveryError) as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     return {
@@ -178,8 +193,14 @@ def _wechat_discoverer(mode: str):
     return OpenCLIWeChatDiscoverer()
 
 
-async def _discover_links(discoverer, accounts, per_account):
+async def _discover_links(
+    discoverer, accounts, per_account, date_from=None, date_to=None
+):
     method = discoverer.discover
+    arguments = (accounts, per_account)
+    keywords = {}
+    if date_from is not None or date_to is not None:
+        keywords = {"date_from": date_from, "date_to": date_to}
     if inspect.iscoroutinefunction(method):
-        return await method(accounts, per_account)
-    return await asyncio.to_thread(method, accounts, per_account)
+        return await method(*arguments, **keywords)
+    return await asyncio.to_thread(method, *arguments, **keywords)

@@ -36,6 +36,7 @@ class Subscription:
     zotero_collection: str
     created_at: str
     updated_at: str
+    last_successful_date: str = ""
 
     def to_dict(self) -> dict:
         payload = asdict(self)

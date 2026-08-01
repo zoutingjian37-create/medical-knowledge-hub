@@ -1,6 +1,9 @@
 """Apply global and per-subscription limits to enabled subscription runs."""
 
 from dataclasses import replace
+from datetime import date, datetime
+
+from extensions.platforms.wechat.vision import SHANGHAI_TZ
 
 from .pipeline import auto_distill_enabled
 
@@ -58,23 +61,40 @@ class SubscriptionRunner:
 
 
 class WeChatSubscriptionPipeline:
-    def __init__(self, *, discoverer, parser, queue, compiler, run_store):
+    def __init__(
+        self,
+        *,
+        discoverer,
+        parser,
+        queue,
+        compiler,
+        run_store,
+        subscription_store=None,
+        now_provider=None,
+    ):
         self.discoverer = discoverer
         self.parser = parser
         self.queue = queue
         self.compiler = compiler
         self.run_store = run_store
+        self.subscription_store = subscription_store
+        self.now_provider = now_provider or (lambda: datetime.now(SHANGHAI_TZ))
 
     async def run(self, subscription):
         from extensions.platforms.wechat.pipeline import WeChatPipeline
 
         run = self.run_store.create(subscription.id)
         try:
+            today = self.now_provider().astimezone(SHANGHAI_TZ).date()
+            cursor = str(getattr(subscription, "last_successful_date", "") or "")
+            date_from = date.fromisoformat(cursor) if cursor else today
             results = await WeChatPipeline(
                 self.discoverer, self.parser, self.queue
             ).run(
                 [subscription.source or subscription.name],
                 per_account=subscription.daily_limit,
+                date_from=date_from,
+                date_to=today,
             )
             queued = 0
             for result in results:
@@ -85,13 +105,19 @@ class WeChatSubscriptionPipeline:
                         import asyncio
 
                         await asyncio.to_thread(self.compiler.run_codex, result.job.id)
-            return self.run_store.update(
+            completed = self.run_store.update(
                 run.id,
                 status="waiting_confirmation" if queued else "completed",
                 discovered=len(results),
                 filtered=queued,
                 queued=queued,
             )
+            if self.subscription_store is not None:
+                self.subscription_store.update(
+                    subscription.id,
+                    last_successful_date=today.isoformat(),
+                )
+            return completed
         except Exception as exc:
             self.run_store.update(run.id, status="failed", error=str(exc))
             raise

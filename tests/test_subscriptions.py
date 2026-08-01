@@ -72,6 +72,25 @@ class SubscriptionStoreTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             store.update_automation(run_time="25:90")
 
+    def test_wechat_subscription_persists_a_concrete_success_cursor(self):
+        store = self._store()
+        subscription = store.create(
+            kind="wechat_account",
+            name="示例医学公众号",
+            source="示例医学公众号",
+        )
+
+        self.assertEqual("", subscription.last_successful_date)
+        updated = store.update(subscription.id, last_successful_date="2026-08-01")
+
+        self.assertEqual("2026-08-01", updated.last_successful_date)
+        self.assertEqual("2026-08-01", store.get(subscription.id).last_successful_date)
+        with self.assertRaises(ValueError):
+            store.update(
+                subscription.id,
+                last_successful_date="2026-08-01T08:30:00",
+            )
+
 
 class SubscriptionApiTests(unittest.TestCase):
     def test_imported_automation_is_synchronized_with_the_windows_task(self):

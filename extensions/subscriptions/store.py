@@ -4,7 +4,7 @@ import json
 import os
 import re
 from dataclasses import replace
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
@@ -77,6 +77,7 @@ class SubscriptionStore:
             "enabled",
             "daily_limit",
             "zotero_collection",
+            "last_successful_date",
         }
         unknown = set(changes) - allowed
         if unknown:
@@ -87,6 +88,8 @@ class SubscriptionStore:
             _validate_limit(changes["daily_limit"])
         if "keywords" in changes:
             changes["keywords"] = _clean_keywords(changes["keywords"])
+        if "last_successful_date" in changes:
+            _validate_date(changes["last_successful_date"])
         changes["updated_at"] = _utc_now()
         updated = replace(current, **changes)
         values = [updated if item.id == subscription_id else item for item in self.list()]
@@ -148,6 +151,8 @@ def _subscription_from_dict(payload: dict) -> Subscription:
     _validate_limit(payload.get("daily_limit", 0))
     values = dict(payload)
     values["keywords"] = _clean_keywords(values.get("keywords", ()))
+    values.setdefault("last_successful_date", "")
+    _validate_date(values["last_successful_date"])
     return Subscription(**values)
 
 
@@ -187,6 +192,16 @@ def _validate_time(value: str) -> None:
     match = re.fullmatch(r"(\d{2}):(\d{2})", str(value))
     if not match or int(match.group(1)) > 23 or int(match.group(2)) > 59:
         raise ValueError("run_time must use HH:MM")
+
+
+def _validate_date(value: str) -> None:
+    cleaned = str(value or "").strip()
+    if not cleaned:
+        return
+    try:
+        date.fromisoformat(cleaned)
+    except ValueError as exc:
+        raise ValueError("last_successful_date must use YYYY-MM-DD") from exc
 
 
 def _clean_keywords(values) -> tuple[str, ...]:

@@ -3,94 +3,260 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>公众号文章发现</title>
+  <title>公众号文章 | 医学知识工作台</title>
   <link rel="stylesheet" href="/static/css/app.css">
   <style>
-    body{background:#f6f8fb;color:#172033;font-family:system-ui,"Microsoft YaHei",sans-serif}
-    main{max-width:820px;margin:0 auto;padding:36px 22px 70px}
-    .panel{background:#fff;border:1px solid #e6eaf0;border-radius:16px;padding:24px}
-    textarea,select,input{width:100%;box-sizing:border-box;padding:12px 14px;border:1px solid #ccd3dd;border-radius:10px;font:inherit;background:#fff}
-    textarea{min-height:145px;line-height:1.7;resize:vertical}
-    .field{display:grid;gap:8px;margin-top:18px}.field:first-child{margin-top:0}
-    .row{display:grid;grid-template-columns:minmax(0,1fr) 150px;gap:14px}
-    .actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:20px}
-    button{border:0;border-radius:10px;padding:11px 18px;font:inherit;cursor:pointer;background:#1677ff;color:#fff}
-    button.secondary{background:#eef4ff;color:#155eef}
-    button:disabled{opacity:.55;cursor:wait}
-    .hint{color:#667085;line-height:1.65}
-    #result{margin-top:18px;white-space:pre-wrap;background:#f8fafc;border-radius:10px;padding:14px;min-height:28px}
-    @media(max-width:620px){.row{grid-template-columns:1fr}}
+    .wechat-layout{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(280px,.72fr);gap:20px;align-items:start}
+    .wechat-form{padding:26px}
+    .field-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px 20px}
+    .field{display:grid;gap:8px;min-width:0}
+    .field--full{grid-column:1/-1}
+    .field label{font-size:13px;font-weight:680;color:var(--ink)}
+    .field small{color:var(--ink-soft);font-size:13px;line-height:1.5}
+    .field input,.field textarea{width:100%;min-width:0;border:1px solid var(--line-strong);border-radius:var(--radius-sm);background:var(--surface);color:var(--ink);padding:11px 13px;line-height:1.5}
+    .field textarea{min-height:118px;resize:vertical}
+    .field input::placeholder,.field textarea::placeholder{color:var(--ink-soft)}
+    .date-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+    .form-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:24px}
+    .form-actions button{min-height:42px;border:0;padding:0 17px;cursor:pointer}
+    .form-actions .review-link{margin-inline-start:auto;color:var(--accent-strong);font-size:13px;font-weight:680;text-decoration:none}
+    .form-actions .review-link:hover{text-decoration:underline;text-underline-offset:3px}
+    .support-panel{overflow:hidden}
+    .support-list{margin:0;padding:0 24px 24px;list-style:none}
+    .support-list li{display:grid;grid-template-columns:84px minmax(0,1fr);gap:14px;padding:14px 0;border-bottom:1px solid var(--line)}
+    .support-list li:last-child{border-bottom:0}
+    .support-list strong{font-size:13px;color:var(--ink)}
+    .support-list span{font-size:13px;line-height:1.5;color:var(--ink-soft)}
+    .run-output{margin-top:20px;overflow:hidden}
+    .run-status{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;padding:18px 22px;background:#f8fafb}
+    .run-status strong{display:block;font-size:18px;line-height:1.35;color:var(--ink)}
+    .run-status p{margin:5px 0 0;color:var(--ink-soft);font-size:13px;line-height:1.55}
+    .run-status[data-state="running"]{background:var(--accent-soft)}
+    .run-status[data-state="error"]{background:var(--surface-muted)}
+    .run-status[data-state="error"] strong{color:var(--danger)}
+    .result-list{margin:0;padding:0;list-style:none}
+    .result-list li{display:grid;gap:5px;padding:17px 22px;border-top:1px solid var(--line);overflow-wrap:anywhere}
+    .result-list a{color:var(--accent-strong);font-weight:650;text-decoration:none}
+    .result-list a:hover{text-decoration:underline;text-underline-offset:3px}
+    .result-list span{color:var(--ink-soft);font-size:13px;line-height:1.5}
+    .empty-result{padding:20px 22px;border-top:1px solid var(--line);color:var(--ink-soft);font-size:13px}
+    @media(max-width:1080px){.wechat-layout{grid-template-columns:1fr}.support-panel{order:2}}
+    @media(max-width:680px){.wechat-form{padding:20px 18px}.field-grid,.date-grid{grid-template-columns:1fr}.field--full{grid-column:auto}.form-actions{align-items:stretch;flex-direction:column}.form-actions button,.form-actions .review-link{width:100%;margin:0;text-align:center;line-height:42px}.support-list{padding-inline:18px}.support-list li{grid-template-columns:1fr;gap:5px}.run-status{padding:17px 18px}.result-list li{padding-inline:18px}}
   </style>
 </head>
 <body>
-<main>
-  <h1>公众号文章发现</h1>
-  <p class="hint">输入公众号名称，先发现公开文章，再进入提炼任务。开源版本不附带任何个人订阅。</p>
-  <section class="panel">
-    <div class="field">
-      <label for="accounts"><strong>公众号名称（每行一个）</strong></label>
-      <textarea id="accounts" placeholder="例如：示例医学公众号"></textarea>
-    </div>
-    <div class="row">
-      <div class="field">
-        <label for="mode"><strong>发现方式</strong></label>
-        <select id="mode">
-          <option value="public">快速公开搜索（推荐）</option>
-          <option value="wechat_ui">微信界面补全（慢速备用）</option>
-        </select>
+  <main class="page-shell">
+    <header class="workspace-header">
+      <div>
+        <h1>公众号文章</h1>
+        <p>输入公众号名称和日期范围。程序操作已登录的微信电脑版，复制公开文章链接，再进入提炼与确认流程。</p>
       </div>
-      <div class="field">
-        <label for="perAccount"><strong>每个公众号</strong></label>
-        <input id="perAccount" type="number" min="1" max="50" value="10">
+    </header>
+
+    <div class="workspace-note" role="note">
+      <strong>运行前准备</strong>
+      <span>请先登录微信电脑版。运行期间不要操作微信窗口；程序不会读取聊天记录、Cookie、Token 或账号密码。</span>
+    </div>
+
+    <div class="wechat-layout">
+      <section class="workspace-panel workspace-panel--primary" aria-labelledby="collect-title">
+        <div class="section-heading">
+          <div>
+            <h2 id="collect-title">查找指定日期的文章</h2>
+            <p>每行填写一个公众号。开源版本不附带任何默认订阅。</p>
+          </div>
+        </div>
+        <form class="wechat-form" id="wechat-form">
+          <div class="field-grid">
+            <div class="field field--full">
+              <label for="accounts">公众号名称</label>
+              <textarea id="accounts" required maxlength="1000" placeholder="例如：示例医学统计公众号"></textarea>
+              <small>必须使用微信中显示的完整公众号名称，每行一个，最多 20 个。</small>
+            </div>
+            <div class="field">
+              <label>发布日期</label>
+              <div class="date-grid">
+                <input id="dateFrom" type="date" aria-label="开始日期">
+                <input id="dateTo" type="date" aria-label="结束日期">
+              </div>
+              <small>“星期几”会转换为最近一周内的具体年月日。</small>
+            </div>
+            <div class="field">
+              <label for="perAccount">每个公众号最多处理</label>
+              <input id="perAccount" type="number" min="1" max="50" value="5" inputmode="numeric">
+              <small>先按具体日期筛选，再应用数量上限。</small>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button class="secondary" type="button" id="discover">只查看公开链接</button>
+            <button type="submit" id="collect">生成待提炼任务</button>
+            <a class="review-link" href="/review.html">查看提炼预览</a>
+          </div>
+        </form>
+      </section>
+
+      <aside class="workspace-panel support-panel" aria-labelledby="rules-title">
+        <div class="section-heading">
+          <div>
+            <h2 id="rules-title">日期与去重</h2>
+            <p>列表日期先归一化，文章页完整日期再复核。</p>
+          </div>
+        </div>
+        <ul class="support-list">
+          <li><strong>今天、昨天</strong><span>按北京时间转换为具体日期。</span></li>
+          <li><strong>星期几</strong><span>解释为最近 1-6 天内对应的日期。</span></li>
+          <li><strong>月日</strong><span>自动补全年份，并处理跨年。</span></li>
+          <li><strong>去重标记</strong><span>公众号、具体发布日期和规范化链接共同标记一篇文章。</span></li>
+        </ul>
+      </aside>
+    </div>
+
+    <section class="workspace-panel run-output" aria-labelledby="run-title">
+      <div class="run-status" id="runStatus" data-state="idle" aria-live="polite">
+        <div>
+          <strong id="run-title">尚未开始</strong>
+          <p id="runMessage">填写公众号名称后开始查找。</p>
+        </div>
       </div>
-    </div>
-    <p class="hint"><strong>快速公开搜索</strong>使用 OpenCLI 和公开搜索页，不操作桌面微信。<strong>微信界面补全</strong>才会调用 pywechat，适合公开搜索缺失时手动补充。</p>
-    <div class="actions">
-      <button class="secondary" id="discover">只查看候选链接</button>
-      <button id="collect">查找并加入待处理</button>
-    </div>
-    <p class="hint">程序不会读取微信 Cookie、Token、聊天数据库或账号密码。搜索结果在解析后会核对公众号作者，名称不匹配的文章不会入队。</p>
-    <div id="result" aria-live="polite">等待开始</div>
-  </section>
-</main>
-<script>
-  const result = document.getElementById("result");
-  const buttons = Array.from(document.querySelectorAll("button"));
-  function payload(){
-    return {
-      accounts: document.getElementById("accounts").value.split(/\r?\n/).map(v=>v.trim()).filter(Boolean),
-      per_account: Number(document.getElementById("perAccount").value || 10),
-      mode: document.getElementById("mode").value
-    };
-  }
-  async function run(path){
-    const request = payload();
-    if(!request.accounts.length){ result.textContent="请至少输入一个公众号名称。"; return; }
-    buttons.forEach(button=>button.disabled=true);
-    result.textContent=request.mode==="public" ? "正在通过公开搜索发现文章……" : "正在操作本机微信，请暂时不要切换微信窗口……";
-    try{
-      const response=await fetch(path,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(request)});
-      const data=await response.json();
-      if(!response.ok) throw new Error(data.detail || "操作失败");
-      if(data.links) result.textContent=data.links.length ? data.links.join("\n") : "没有发现公开文章候选";
-      else {
-        const settings=await window.ContentHubAPI.get("/api/ext/knowledge/settings");
-        if(settings.auto_distill){
-          for(const item of data.results.filter(entry=>entry.queued && entry.job_id)){
-            result.textContent=`正在使用 Skill 提炼：${item.title || item.job_id}`;
-            await window.ContentHubAPI.post(`/api/ext/knowledge/jobs/${item.job_id}/compile`,{});
-            item.status="preview_ready";
-          }
-        }
-        result.textContent=data.results.map(item=>`${item.status}: ${item.title || item.job_id || item.reason}`).join("\n") || "没有新文章需要提炼";
+      <ul class="result-list" id="resultList"></ul>
+    </section>
+  </main>
+
+  <script src="/static/js/api-client.js"></script>
+  <script src="/static/js/app-shell.js"></script>
+  <script>
+    (function () {
+      "use strict";
+      var form = document.getElementById("wechat-form");
+      var discoverButton = document.getElementById("discover");
+      var buttons = [discoverButton, document.getElementById("collect")];
+      var status = document.getElementById("runStatus");
+      var title = document.getElementById("run-title");
+      var message = document.getElementById("runMessage");
+      var list = document.getElementById("resultList");
+      var beijingParts = new Intl.DateTimeFormat("en-GB", {
+        timeZone: "Asia/Shanghai",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit"
+      }).formatToParts(new Date()).reduce(function (result, part) {
+        result[part.type] = part.value;
+        return result;
+      }, {});
+      var beijingToday = beijingParts.year + "-" + beijingParts.month + "-" + beijingParts.day;
+      document.getElementById("dateFrom").value = beijingToday;
+      document.getElementById("dateTo").value = beijingToday;
+
+      function requestPayload() {
+        var accounts = document.getElementById("accounts").value
+          .split(/\r?\n/).map(function (value) { return value.trim(); }).filter(Boolean);
+        var payload = {
+          accounts: accounts,
+          per_account: Number(document.getElementById("perAccount").value || 5),
+          mode: "wechat_ui"
+        };
+        var dateFrom = document.getElementById("dateFrom").value;
+        var dateTo = document.getElementById("dateTo").value;
+        if (dateFrom) payload.date_from = dateFrom;
+        if (dateTo) payload.date_to = dateTo;
+        return payload;
       }
-    }catch(error){ result.textContent="未完成："+error.message; }
-    finally{ buttons.forEach(button=>button.disabled=false); }
-  }
-  document.getElementById("discover").addEventListener("click",()=>run("/api/ext/platforms/wechat/discover"));
-  document.getElementById("collect").addEventListener("click",()=>run("/api/ext/platforms/wechat/collect"));
-</script>
-<script src="/static/js/api-client.js"></script>
-<script src="/static/js/app-shell.js"></script>
+
+      function setState(stateName, heading, detail) {
+        status.dataset.state = stateName;
+        title.textContent = heading;
+        message.textContent = detail;
+      }
+
+      function setBusy(busy) {
+        buttons.forEach(function (button) { button.disabled = busy; });
+      }
+
+      function clearResults() {
+        while (list.firstChild) list.removeChild(list.firstChild);
+      }
+
+      function appendResult(primary, secondary, href) {
+        var item = document.createElement("li");
+        var main = href ? document.createElement("a") : document.createElement("strong");
+        main.textContent = primary;
+        if (href) {
+          main.href = href;
+          main.target = "_blank";
+          main.rel = "noreferrer";
+        }
+        item.appendChild(main);
+        if (secondary) {
+          var detail = document.createElement("span");
+          detail.textContent = secondary;
+          item.appendChild(detail);
+        }
+        list.appendChild(item);
+      }
+
+      function validate(payload) {
+        if (!payload.accounts.length) return "请至少填写一个公众号名称。";
+        if (payload.date_from && payload.date_to && payload.date_from > payload.date_to) return "开始日期不能晚于结束日期。";
+        return "";
+      }
+
+      async function run(path) {
+        var payload = requestPayload();
+        var problem = validate(payload);
+        if (problem) {
+          setState("error", "需要修改输入", problem);
+          return;
+        }
+        clearResults();
+        setBusy(true);
+        setState("running", "正在查找公众号文章", "微信窗口会自动切换。程序正在识别公众号、文章列表和发布日期。");
+        try {
+          var response = await fetch(path, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+          });
+          var data = await response.json();
+          if (!response.ok) throw new Error(data.detail || "公众号文章查找失败，请确认微信已登录后重试。");
+          if (Array.isArray(data.links)) {
+            data.links.forEach(function (url) { appendResult(url, "公开文章链接", url); });
+            setState("success", "查找完成", data.links.length ? "已按具体发布日期筛选并去重。" : "指定日期范围内没有发现新文章。");
+            return;
+          }
+          var results = Array.isArray(data.results) ? data.results : [];
+          try {
+            var settings = await window.ContentHubAPI.get("/api/ext/knowledge/settings");
+            if (settings.auto_distill) {
+              var queued = results.filter(function (item) { return item.queued && item.job_id; });
+              for (var index = 0; index < queued.length; index += 1) {
+                setState("running", "正在提炼公众号文章", queued[index].title || queued[index].job_id);
+                await window.ContentHubAPI.post("/api/ext/knowledge/jobs/" + queued[index].job_id + "/compile", {});
+                queued[index].status = "preview_ready";
+              }
+            }
+          } catch (compileError) {
+            results.forEach(function (item) {
+              if (item.queued) item.reason = "已加入待提炼任务，可稍后重试自动提炼";
+            });
+          }
+          results.forEach(function (item) {
+            var detail = item.status === "preview_ready" ? "提炼预览已生成，等待确认" : item.status === "pending" ? "已加入待提炼任务" : item.reason || item.status;
+            appendResult(item.title || item.source_url || "未命名文章", detail, item.source_url);
+          });
+          setState("success", "任务已生成", results.length ? "文章已进入待提炼流程。完成后可在“查看提炼预览”中确认。" : "指定日期范围内没有需要处理的新文章。");
+        } catch (error) {
+          setState("error", "未完成公众号查找", error.message || "请确认微信已登录并保持窗口可见，然后重试。");
+        } finally {
+          setBusy(false);
+        }
+      }
+
+      discoverButton.addEventListener("click", function () { run("/api/ext/platforms/wechat/discover"); });
+      form.addEventListener("submit", function (event) {
+        event.preventDefault();
+        run("/api/ext/platforms/wechat/collect");
+      });
+    }());
+  </script>
 </body>
 </html>

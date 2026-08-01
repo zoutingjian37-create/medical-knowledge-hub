@@ -1,3 +1,11 @@
-# Optional Windows-only UI discovery layer. The core parser and archive do not
-# depend on it and keep working when WeChat changes its interface.
+# Optional Windows-only visual discovery layer. OCR runs locally and observes
+# only rendered pixels; the core public-link parser remains independent.
+rapidocr_onnxruntime==1.2.3
+pyautogui==0.9.54
+pyperclip>=1.9,<2
+psutil>=7,<8
+Pillow>=12,<13
+
+# Kept only as an explicit compatibility fallback for older WeChat builds whose
+# UI Automation tree is still exposed. The visual workflow is the default.
 pywechat127==1.9.8

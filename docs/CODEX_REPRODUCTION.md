@@ -6,7 +6,7 @@
 
 - 支持微信、知乎、B站、小红书、抖音公开链接；五个平台统一进入 `KnowledgeJobQueue`。
 - 订阅中心支持 `wechat_account`、`journal`、`feed`、`literature_query`；新克隆必须为空白状态，个人配置只能位于 `CONTENT_HUB_STATE_DIR`。
-- 微信默认使用 OpenCLI 公开搜索、Browser Bridge 跳转解析和公开链接下载；其他四个平台同样复用 OpenCLI，不复制爬虫。
+- 微信默认使用本地视觉状态机操作已登录的微信电脑版发现公开链接，再由 OpenCLI 解析单篇链接；其他四个平台复用 OpenCLI，不复制爬虫。
 - Codex 只生成预览；只有本地服务的 `/approve` 在用户确认后可以写 Vault。
 - 不收集平台密码、Cookie、Token、聊天数据库或微信个人资料。
 - 原始正文只进入 `D:\Codex\cache\medical-knowledge-hub`，确认或拒绝后删除，不能提交 Git。
@@ -17,12 +17,12 @@
 
 ```text
 公开 URL / 公众号名称
-  → URL 平台识别 / 微信公开搜索
-  → OpenCLI 跳转解析与内容读取
+  → URL 平台识别 / 微信视觉发现与日期归一化
+  → 复制公开链接 / OpenCLI 内容读取
   → 平台无关 MarkdownDocument
   → 广告清理与去重
   → pending
-  → 本机 Codex CLI + distill-medical-literature
+  → 本机 Codex CLI + distill-medical-wechat
   → preview_ready
   → 用户查看
      ├─ approve → Obsidian 证据卡/Wiki/日志 → 删除缓存
@@ -65,7 +65,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 `
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install-platform-engines.ps1
 ```
 
-在浏览器安装并连接 OpenCLI Browser Bridge；在需要的平台网页保持正常登录。编辑 `.env`，确认 `OBSIDIAN_VAULT_PATH`、`OPENCLI_RUNTIME_DIR`、`CONTENT_HUB_CODEX_CLI` 都指向真实路径。
+在浏览器安装并连接 OpenCLI Browser Bridge；在需要的平台网页保持正常登录。微信电脑版也必须由用户预先登录。编辑 `.env`，确认 `OBSIDIAN_VAULT_PATH`、`OPENCLI_RUNTIME_DIR`、`CONTENT_HUB_CODEX_CLI` 都指向真实路径。
 
 启动 Zotero，打开本地 API，并用 Connector 完成一次测试保存。`CONTENT_HUB_STATE_DIR` 默认是 `D:\Codex\state\medical-knowledge-hub`；订阅、运行记录、登录接力和预览都在这里，不得加入 Git。`CONTENT_HUB_MANAGE_TASK_SCHEDULER=1` 允许应用同步唯一的当前用户任务 `Medical Knowledge Hub Daily`。
 
@@ -116,7 +116,9 @@ Invoke-RestMethod http://127.0.0.1:5000/api/ext/zotero/status
 - `routes_ext/platforms.py`：统一链接 API 和旧微信兼容入口。
 - `extensions/platforms/url_router.py`：纯 URL 平台识别。
 - `extensions/platforms/opencli/adapter.py`：四个平台共享适配器。
-- `extensions/platforms/wechat/discovery.py`：默认公开搜索发现器与显式微信 UI 备用发现器。
+- `extensions/platforms/wechat/vision.py`：微信日期归一化、文章行识别和具体日期去重规则。
+- `extensions/platforms/wechat/windows_session.py`：默认的当前微信视觉状态机与公开链接复制。
+- `extensions/platforms/wechat/discovery.py`：视觉发现默认入口与显式公开搜索兼容入口。
 - `extensions/platforms/wechat/parser.py`：微信公开链接解析。
 - `extensions/processing/job_queue.py`：广告清理、去重与入队。
 - `extensions/processing/compiler.py`：Codex 预览、路径校验和确认写入。
@@ -125,19 +127,21 @@ Invoke-RestMethod http://127.0.0.1:5000/api/ext/zotero/status
 - `static/inbox.html`：五平台手动链接 UI。
 - `static/subscriptions.html`：订阅中心和个人配置导入/导出 UI。
 - `skills/distill-medical-literature/`：可复用医学文献提炼契约。
+- `skills/distill-medical-wechat/`：公众号和其他公开平台医学讲解提炼契约。
 
 ## 常见失败的定位顺序
 
 1. 桌面图标消失：重新运行安装器；检查快捷方式目标是否为 `start.bat`。
 2. 服务不起：看 `D:\Codex\state\medical-knowledge-hub\logs\server.err.log`。
 3. 链接不支持：核对域名和内容 URL 形态，不要放宽到任意域名。
-4. OpenCLI 不可用：检查 `/api/ext/platforms/{platform}/health`、Browser Bridge 和网页登录状态；微信临时验证页允许程序完成一次等待重试。
-5. Codex 失败：检查 `.env` 的 CLI 路径、`login status` 和 Skill 安装目录。
-6. Vault 不写：确认任务是 `preview_ready`、用户点击了确认、Vault 路径是根目录。
-7. RSS 失败：确认 URL 是公开的 HTTP(S) Feed；内网、回环、链路本地地址会被 SSRF 防护拒绝。
-8. Zotero 等待目录：在 Zotero 左侧选择与订阅完全同名的目录。官方本地 API 只读，应用不会静默创建目录。
-9. 学校权限等待：由用户在浏览器登录并点击官方 Connector；不得把学校 Cookie 或 Token 加到 `.env`。
+4. 微信视觉发现失败：确认微信已登录且主窗口可见，再查看 `D:\Codex\state\medical-knowledge-hub\diagnostics` 的最新截图。不要把个人截图提交 Git。
+5. OpenCLI 不可用：检查 `/api/ext/platforms/{platform}/health`、Browser Bridge 和网页登录状态；已复制的微信公开链接也可以在“粘贴链接”中重试。
+6. Codex 失败：检查 `.env` 的 CLI 路径、`login status` 和 Skill 安装目录。
+7. Vault 不写：确认任务是 `preview_ready`、用户点击了确认、Vault 路径是根目录。
+8. RSS 失败：确认 URL 是公开的 HTTP(S) Feed；内网、回环、链路本地地址会被 SSRF 防护拒绝。
+9. Zotero 等待目录：在 Zotero 左侧选择与订阅完全同名的目录。官方本地 API 只读，应用不会静默创建目录。
+10. 学校权限等待：由用户在浏览器登录并点击官方 Connector；不得把学校 Cookie 或 Token 加到 `.env`。
 
 ## 给接管 Codex 的执行指令
 
-先阅读本文件、README、设计文档和测试。优先修复现有适配边界，不引入第二套平台爬虫或通用期刊爬虫。公众号日常发现必须优先使用 `mode=public`；医学文献优先 RSS/Atom、Europe PMC、Crossref/OpenAlex；Computer Use 只用于人工诊断，不是生产采集器。任何代码修改先写失败测试，再实现；完成前必须执行全量测试、一条真实公开链接和一条真实开放获取文献到 `preview_ready` 的验收。不得提交 `.env`、缓存、订阅、任务状态、原文、Cookie、Token、Vault 文件或发布压缩包。
+先阅读本文件、README、设计文档和测试。优先修复现有适配边界，不引入第二套平台爬虫或通用期刊爬虫。公众号日常发现必须优先使用 `mode=wechat_ui`，并保持视觉发现、公开链接解析和知识提炼三层独立；医学文献优先 RSS/Atom、Europe PMC、Crossref/OpenAlex；Computer Use 只用于人工诊断，不是生产采集器。任何代码修改先写失败测试，再实现；完成前必须执行全量测试、一条真实公众号公开链接和一条真实开放获取文献到 `preview_ready` 的验收。不得提交 `.env`、缓存、订阅、任务状态、原文、Cookie、Token、Vault 文件、诊断截图或发布压缩包。

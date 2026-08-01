@@ -9,7 +9,7 @@ Copyright (C) 2026 zoutingjian37-create.
 - Project: `jackwener/OpenCLI`
 - Website: https://github.com/jackwener/opencli
 - License: Apache License 2.0
-- Usage: 作为独立安装的本地命令行运行时，通过公开 CLI 接口搜索微信公开候选文章、解析搜索跳转，并读取五个平台的公开内容
+- Usage: 作为独立安装的本地命令行运行时，读取已经复制的微信公开链接，以及知乎、B站、小红书和抖音公开内容
 - Pinned runtime version: 1.8.6
 
 OpenCLI 源代码不包含在本仓库中，其安装目录保留自己的许可证。
@@ -19,17 +19,27 @@ OpenCLI 源代码不包含在本仓库中，其安装目录保留自己的许可
 - Project: `Hello-Mr-Crab/pywechat`
 - Website: https://github.com/Hello-Mr-Crab/pywechat
 - License: GNU Lesser General Public License v2.1
-- Usage: 用户明确选择“微信界面补全”时启用的可选 Windows UI 依赖；不属于默认采集链路
+- Usage: 提供代码驱动 Windows RPA 的架构参考，并作为 UI Automation 树仍可见的旧版微信兼容依赖；不属于默认采集链路
 - Pinned package: `pywechat127==1.9.8`
 
-该依赖作为独立 Python 包安装，其源代码不包含在本仓库核心代码中。
+该依赖作为独立 Python 包安装，其源代码不包含在本仓库核心代码中。默认视觉状态机没有复制其源代码。
+
+## RapidOCR ONNX Runtime
+
+- Project: `RapidAI/RapidOCR`
+- Website: https://github.com/RapidAI/RapidOCR
+- License: Apache License 2.0
+- Usage: 在本机离线识别微信窗口中的公众号名称、文章标题、日期和菜单文字
+- Pinned package: `rapidocr_onnxruntime==1.2.3`
+
+OCR 模型和运行时作为独立 Python 包安装。截图仅用于当前本机运行和失败诊断，不上传远程服务，也不进入 Git。
 
 ## Upstream compatibility audit
 
 上游兼容性最近核验于 2026-08-01：
 
-- OpenCLI 仓库仍活跃，1.8.6 提供 `weixin search`、Browser Bridge 和 `weixin download`。本项目补齐其搜索结果从搜狗跳转到真实微信 URL 的编排，不复制 OpenCLI 抓取实现。
-- pywechat 仓库与 `pywechat127` 包仍活跃并支持当前微信 4.x，但其维护者说明公众号列表几乎不暴露可用的 UI Automation 信息；现有方案必须逐篇收藏再取链接，因此只保留为慢速、尽力而为的备用通道。
+- OpenCLI 仓库仍活跃，1.8.6 提供 `weixin download`。其公开搜索结果存在覆盖和时效限制，所以本项目只把它用于单篇公开链接解析。
+- pywechat 包可以识别微信 4.x 安装路径，但当前账号和设备的 UI Automation 树不可见。默认流程改用本地 OCR 与状态验证，旧收藏流程只保留为兼容通道。
 - 两个依赖均以独立运行时使用；本仓库没有复制、合并或改写其源代码。
 
 核验依据见 [docs/upstream-compatibility.md](docs/upstream-compatibility.md)。
