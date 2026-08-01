@@ -17,10 +17,10 @@ def _preview(source_url=SOURCE_URL):
     return f"""---
 source_url: "{source_url}"
 source_platform: wechat
-source_account: "统计之光医学统计"
+source_account: "示例医学统计号"
 source_title: "童年经历与成年心血管病"
 published_at: "2026-07-30"
-verification_level: public-account
+evidence_level: public_account_summary
 status: preview
 wiki_updates: []
 ---
@@ -30,26 +30,32 @@ wiki_updates: []
 ## 核心结论
 童年不利经历可能通过成年抑郁影响心血管健康。
 
-## 研究问题与 PECO
+## 临床问题与 PICO/PECO
 中老年人群中的童年暴露与心血管结局。
 
-## 数据来源和关键变量
+## 数据与变量
 CHARLS、童年暴露、抑郁和心血管结局。
 
-## 分析方法概览
+## 方法—问题映射
 纵向生存分析与中介分析。
 
-## 主要结论与结果
+## 主要结论
 关联和部分中介路径成立。
 
-## 创新点与前沿方法雷达
+## 统计方法创新
 方法应用创新：把中介分析用于生命周期问题。
 
-## 可迁移元素
+## 其他创新点
+生命周期暴露与心理路径的联合问题设计。
+
+## 迁移方向
 可迁移至其他早期暴露和慢性病结局。
 
 ## 潜在选题
 灵感候选：睡眠是否参与相似路径。
+
+## 证据边界
+观察性关联不能证明因果关系。
 
 ## Wiki 更新建议
 更新 CHARLS 与因果中介分析。
@@ -71,7 +77,7 @@ class KnowledgeCompilerTests(unittest.TestCase):
         document = MarkdownDocument(
             source_url=SOURCE_URL,
             title="童年经历与成年心血管病",
-            author="统计之光医学统计",
+            author="示例医学统计号",
             published_at="2026-07-30",
             markdown="这是只允许临时保存的清洗后正文。",
         )
@@ -254,6 +260,21 @@ class KnowledgeCompilerTests(unittest.TestCase):
                 [],
             )
 
+    def test_validator_accepts_the_current_installed_skill_section_contract(self):
+        current = (
+            _preview()
+            .replace("## 研究问题与 PECO", "## 临床问题与 PICO/PECO")
+            .replace("## 数据来源和关键变量", "## 数据与变量")
+            .replace("## 分析方法概览", "## 方法—问题映射")
+            .replace("## 主要结论与结果", "## 主要结论")
+            .replace("## 创新点与前沿方法雷达", "## 统计方法创新\n方法应用创新。\n\n## 其他创新点")
+            .replace("## 可迁移元素", "## 迁移方向")
+            .replace("## 潜在选题", "## 证据边界\n观察性证据。\n\n## 潜在选题")
+        )
+
+        accepted = self._compiler().accept_preview(self.job.id, current, [])
+        self.assertEqual("preview_ready", accepted.status)
+
     def test_reject_deletes_temporary_source_without_writing_vault(self):
         rejected = self._compiler().reject(self.job.id)
 
@@ -385,7 +406,7 @@ class KnowledgeCompilerTests(unittest.TestCase):
             )
 
         self.assertEqual(200, response.status_code)
-        self.assertIn("创新点与前沿方法雷达", response.json()["markdown"])
+        self.assertIn("统计方法创新", response.json()["markdown"])
         self.assertNotIn("cache_path", response.text)
 
 

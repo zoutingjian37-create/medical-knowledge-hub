@@ -10,15 +10,18 @@ from dotenv import load_dotenv
 
 from routes_ext.knowledge import router as knowledge_router
 from routes_ext.platforms import router as platforms_router
+from routes_ext.subscriptions import router as subscriptions_router
 
 
 ROOT = Path(__file__).resolve().parent
 STATIC_ROOT = ROOT / "static"
+APP_VERSION = "1.1.0"
 ACTIVE_PAGES = {
     "admin",
     "inbox",
     "platforms",
     "review",
+    "subscriptions",
     "wechat-collect",
 }
 LOOPBACK_HOSTS = {"127.0.0.1", "localhost", "::1", "testserver"}
@@ -57,6 +60,7 @@ def resolve_bind_host() -> str:
 
 app = FastAPI(
     title="Medical Knowledge Hub",
+    version=APP_VERSION,
     docs_url="/api/docs",
     redoc_url="/api/redoc",
     openapi_url="/api/openapi.json",
@@ -82,12 +86,17 @@ async def protect_local_boundary(request: Request, call_next):
 
 app.include_router(platforms_router, prefix="/api/ext")
 app.include_router(knowledge_router, prefix="/api/ext")
+app.include_router(subscriptions_router, prefix="/api/ext")
 app.mount("/static", StaticFiles(directory=STATIC_ROOT), name="static")
 
 
 @app.get("/api/health", tags=["system"])
 async def health() -> dict[str, str]:
-    return {"status": "ok", "service": "medical-knowledge-hub"}
+    return {
+        "status": "ok",
+        "service": "medical-knowledge-hub",
+        "version": APP_VERSION,
+    }
 
 
 @app.get("/", include_in_schema=False)

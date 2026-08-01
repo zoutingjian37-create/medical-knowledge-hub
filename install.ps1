@@ -43,8 +43,15 @@ New-Item -ItemType Directory -Path $SkillDestination -Force | Out-Null
 Copy-Item -Path (Join-Path $SkillSource "*") -Destination $SkillDestination -Recurse -Force
 
 $EnvPath = Join-Path $ResolvedInstall ".env"
+$CreatedEnv = -not (Test-Path -LiteralPath $EnvPath)
 if (-not (Test-Path -LiteralPath $EnvPath)) {
     Copy-Item -LiteralPath (Join-Path $ResolvedInstall "env.example") -Destination $EnvPath
+}
+$Lines = Get-Content -LiteralPath $EnvPath -Encoding UTF8 | Where-Object { $_ -notmatch '^CONTENT_HUB_MANAGE_TASK_SCHEDULER=' }
+$Lines += "CONTENT_HUB_MANAGE_TASK_SCHEDULER=1"
+Set-Content -LiteralPath $EnvPath -Value $Lines -Encoding UTF8
+if ($CreatedEnv) {
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $ResolvedInstall "install-automation-task.ps1") -ProjectRoot $ResolvedInstall -PythonExe $AppPython -Disable
 }
 if ($VaultPath) {
     $Lines = Get-Content -LiteralPath $EnvPath -Encoding UTF8 | Where-Object { $_ -notmatch '^OBSIDIAN_VAULT_PATH=' }
@@ -74,6 +81,10 @@ if ($CreateDesktopShortcut) {
     $Shortcut.WorkingDirectory = $ResolvedInstall
     $Shortcut.Description = "医学知识提炼与 Obsidian 归档"
     $Shortcut.Save()
+    $IconRefresh = Join-Path $env:SystemRoot "System32\ie4uinit.exe"
+    if (Test-Path -LiteralPath $IconRefresh) {
+        & $IconRefresh -show
+    }
 }
 
 Push-Location $ResolvedInstall

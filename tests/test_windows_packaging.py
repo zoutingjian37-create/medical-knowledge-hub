@@ -1,4 +1,5 @@
 from pathlib import Path
+from tempfile import TemporaryDirectory
 import unittest
 
 
@@ -6,6 +7,22 @@ ROOT = Path(__file__).parents[1]
 
 
 class WindowsPackagingTests(unittest.TestCase):
+    def test_release_manifest_can_be_read_from_an_extracted_zip_without_git(self):
+        from release_manifest import build_manifest
+
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "static").mkdir()
+            (root / "app.py").write_text("app = object()", "utf-8")
+            (root / "static" / "subscriptions.html").write_text("ok", "utf-8")
+            (root / ".env").write_text("SECRET=private", "utf-8")
+
+            manifest = build_manifest(root)
+
+        self.assertIn("app.py", manifest)
+        self.assertIn("static/subscriptions.html", manifest)
+        self.assertNotIn(".env", manifest)
+
     def test_release_manifest_includes_runtime_and_excludes_private_data(self):
         from release_manifest import build_manifest
 
@@ -13,6 +30,8 @@ class WindowsPackagingTests(unittest.TestCase):
 
         self.assertIn("app.py", manifest)
         self.assertIn("skills/distill-medical-literature/SKILL.md", manifest)
+        self.assertIn("install-automation-task.ps1", manifest)
+        self.assertIn("extensions/subscriptions/worker.py", manifest)
         self.assertIn("install.ps1", manifest)
         self.assertIn("launch.ps1", manifest)
         self.assertIn("Dockerfile", manifest)
@@ -20,6 +39,7 @@ class WindowsPackagingTests(unittest.TestCase):
         self.assertIn("status.sh", manifest)
         self.assertIn("assets/medical-knowledge-hub.ico", manifest)
         self.assertIn("docs/CODEX_REPRODUCTION.md", manifest)
+        self.assertIn("PRODUCT.md", manifest)
         self.assertNotIn(".env", manifest)
         self.assertFalse(any(path.startswith("data/") for path in manifest))
         self.assertFalse(any(path.startswith("tests/") for path in manifest))
@@ -31,10 +51,13 @@ class WindowsPackagingTests(unittest.TestCase):
         self.assertIn(r"D:\Codex\medical-knowledge-hub", installer)
         self.assertIn(r"D:\Codex\venvs\medical-knowledge-hub", installer)
         self.assertIn("distill-medical-literature", installer)
+        self.assertIn("CONTENT_HUB_MANAGE_TASK_SCHEDULER", installer)
+        self.assertIn("install-automation-task.ps1", installer)
         self.assertIn("CreateShortcut", installer)
         self.assertIn("start.bat", installer)
         self.assertIn("$Shortcut.TargetPath = $Launcher", installer)
         self.assertIn("$Shortcut.IconLocation = $Icon", installer)
+        self.assertIn("ie4uinit.exe", installer)
         self.assertNotIn("$Shortcut.TargetPath = $PowerShell", installer)
         self.assertIn("[switch]$SkipWeChatDiscovery", installer)
         self.assertNotIn("[bool]$InstallWeChatDiscovery", installer)
@@ -69,6 +92,11 @@ class WindowsPackagingTests(unittest.TestCase):
             self.assertIn(section, readme)
         for dependency in ("GitHub CLI", "Codex CLI", "OpenCLI", "OBSIDIAN_VAULT_PATH"):
             self.assertIn(dependency, readme)
+
+    def test_application_reports_the_release_version(self):
+        app_source = (ROOT / "app.py").read_text("utf-8")
+        self.assertIn('APP_VERSION = "1.1.0"', app_source)
+        self.assertIn("version=APP_VERSION", app_source)
 
 
 if __name__ == "__main__":

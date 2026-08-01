@@ -33,3 +33,16 @@ OpenCLI 源代码不包含在本仓库中，其安装目录保留自己的许可
 - 两个依赖均以独立运行时使用；本仓库没有复制、合并或改写其源代码。
 
 核验依据见 [docs/upstream-compatibility.md](docs/upstream-compatibility.md)。
+
+## 标准文献服务与 Zotero
+
+本项目通过公开协议或官方本地接口调用以下服务，不复制其源代码，也不把用户凭据写入仓库：
+
+- [Europe PMC REST API](https://dev.europepmc.org/RestfulWebService)：医学文献检索、PMID/PMCID、摘要和开放全文链接。
+- [Crossref REST API](https://www.crossref.org/documentation/retrieve-metadata/rest-api/)：DOI 与出版元数据补全。
+- [OpenAlex API](https://docs.openalex.org/)：OpenAlex ID、开放获取状态和元数据补全。
+- [Zotero Local API](https://www.zotero.org/support/dev/web_api/v3/local_api)：只读检查本地文库和全文索引。
+- [Zotero Connector HTTP Server](https://www.zotero.org/support/dev/client_coding/connector_http_server)：使用官方 `saveItems` 创建题录，并用 `saveAttachment` 把开放 PDF 上传为 Zotero 管理的附件。
+- RSS 2.0 / Atom：期刊和科研网站的标准增量订阅格式。
+
+学校或出版社登录始终由用户在浏览器完成。本项目不接收或保存账号、密码、Cookie、Token。

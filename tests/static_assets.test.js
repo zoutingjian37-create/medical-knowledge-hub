@@ -140,6 +140,25 @@ test("secondary pages use concise descriptions", () => {
     assert.match(wechat, /微信界面补全/);
 });
 
+test("subscription center exposes daily controls and personal source management", () => {
+    const html = fs.readFileSync(path.join(__dirname, "..", "static", "subscriptions.html"), "utf8");
+    const shell = fs.readFileSync(path.join(__dirname, "..", "static", "js", "app-shell.js"), "utf8");
+
+    assert.match(html, /<h1>订阅中心<\/h1>/);
+    assert.match(html, /每日自动运行/);
+    assert.match(html, /新增订阅/);
+    assert.match(html, /立即运行/);
+    assert.match(html, /Zotero/);
+    assert.match(html, /打开登录页面/);
+    assert.match(html, /已保存到 Zotero，继续/);
+    assert.match(html, /导出个人配置/);
+    assert.match(html, /导入个人配置/);
+    assert.match(html, /class="automation-field"/);
+    assert.match(html, /waiting_confirmation:'等待确认'/);
+    assert.match(html, /\/api\/ext\/subscriptions/);
+    assert.match(shell, /订阅中心/);
+});
+
 test("review page exposes the complete review-gated workflow", () => {
     const html = fs.readFileSync(path.join(__dirname, "..", "static", "review.html"), "utf8");
 

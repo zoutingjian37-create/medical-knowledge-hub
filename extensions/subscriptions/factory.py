@@ -1,0 +1,40 @@
+"""Construct the production subscription runner from existing small adapters."""
+
+from extensions.platforms.wechat.discovery import OpenCLIWeChatDiscoverer
+from extensions.platforms.wechat.parser import OpenCLIWeChatParser
+from extensions.processing.compiler import KnowledgeCompiler
+from extensions.processing.job_queue import KnowledgeJobQueue
+
+from .discovery import DefaultLiteratureDiscoverer
+from .pipeline import LiteraturePipeline
+from .runner import SubscriptionRunner, WeChatSubscriptionPipeline
+from .runs import LiteratureRunStore
+from .store import SubscriptionStore
+from .zotero import ZoteroGateway
+
+
+def build_subscription_runner() -> SubscriptionRunner:
+    store = SubscriptionStore()
+    runs = LiteratureRunStore(store.root)
+    queue = KnowledgeJobQueue()
+    compiler = KnowledgeCompiler()
+    literature = LiteraturePipeline(
+        discoverer=DefaultLiteratureDiscoverer(),
+        zotero=ZoteroGateway(),
+        queue=queue,
+        compiler=compiler,
+        run_store=runs,
+        state_root=store.root,
+    )
+    wechat = WeChatSubscriptionPipeline(
+        discoverer=OpenCLIWeChatDiscoverer(),
+        parser=OpenCLIWeChatParser(),
+        queue=queue,
+        compiler=compiler,
+        run_store=runs,
+    )
+    return SubscriptionRunner(
+        store=store,
+        literature_pipeline=literature,
+        wechat_pipeline=wechat,
+    )

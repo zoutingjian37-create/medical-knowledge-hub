@@ -217,9 +217,9 @@ class WeChatDiscoveryRouteTests(unittest.TestCase):
 
         self.assertIn("快速公开搜索", html)
         self.assertIn("微信界面补全", html)
-        self.assertNotIn("统计之光讲医学统计", html)
-        self.assertNotIn("统计之光公共数据库", html)
-        self.assertNotIn("医学论文与统计分析", html)
+        self.assertNotIn("示例医学统计号", html)
+        self.assertNotIn("示例公共数据库号", html)
+        self.assertNotIn("示例论文分析号", html)
 
 
 if __name__ == "__main__":

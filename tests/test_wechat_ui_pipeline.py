@@ -47,7 +47,7 @@ class _OpenCLIRunner:
         return [
             {
                 "title": "回归分析入门",
-                "author": "统计之光医学统计",
+                "author": "示例医学统计号",
                 "publish_time": "2026-07-30",
                 "saved": str(output / "article.md"),
             }
@@ -77,10 +77,10 @@ class WeChatUIDiscoveryContractTests(unittest.TestCase):
         backend = _DiscoveryBackend()
         discoverer = discoverer_type(backend=backend)
 
-        links = discoverer.discover(["统计之光医学统计"], per_account=5)
+        links = discoverer.discover(["示例医学统计号"], per_account=5)
 
         self.assertEqual((PUBLIC_URL,), links)
-        self.assertEqual([("统计之光医学统计", 5)], backend.calls)
+        self.assertEqual([("示例医学统计号", 5)], backend.calls)
 
     def test_discovery_api_has_no_credential_parameters(self):
         discoverer_type = self._discoverer_type()
@@ -173,7 +173,7 @@ class WeChatAdapterParserBoundaryTests(unittest.TestCase):
         document = MarkdownDocument(
             source_url=PUBLIC_URL,
             title="回归分析入门",
-            author="统计之光医学统计",
+            author="示例医学统计号",
             published_at="2026-07-30",
             markdown="# 回归分析入门\n\n正文内容",
         )
@@ -212,14 +212,14 @@ class ObsidianArchiveContractTests(unittest.TestCase):
         normal = document_type(
             source_url=PUBLIC_URL,
             title="回归分析入门",
-            author="统计之光医学统计",
+            author="示例医学统计号",
             published_at="2026-07-30",
             markdown="# 回归分析入门\n\n正文内容",
         )
         advert = document_type(
             source_url="https://mp.weixin.qq.com/s/advert",
             title="课程优惠报名通知",
-            author="统计之光医学统计",
+            author="示例医学统计号",
             published_at="2026-07-30",
             markdown="# 课程优惠报名通知\n\n立即购买",
         )
@@ -245,14 +245,14 @@ class ObsidianArchiveContractTests(unittest.TestCase):
         first_document = document_type(
             source_url="https://mp.weixin.qq.com/s/first",
             title="直线相关还是秩相关？ | 30天学会医学统计学公益课(D15)",
-            author="医学论文与统计分析",
+            author="示例论文分析号",
             published_at="2026-07-30",
             markdown="# 第一篇\n\n正文一",
         )
         second_document = document_type(
             source_url="https://mp.weixin.qq.com/s/second",
             title="直线相关还是秩相关？ | 30天学会医学统计学公益课(D15)",
-            author="医学论文与统计分析",
+            author="示例论文分析号",
             published_at="2026-07-30",
             markdown="# 第二篇\n\n正文二",
         )
@@ -276,11 +276,11 @@ class ObsidianArchiveContractTests(unittest.TestCase):
         document = document_type(
             source_url="https://mp.weixin.qq.com/s/correlation",
             title="直线相关还是秩相关？",
-            author="医学论文与统计分析",
+            author="示例论文分析号",
             published_at="2026-07-30",
             markdown=(
                 "# 直线相关还是秩相关？\n\n"
-                "> 公众号: 医学论文与统计分析\n\n---\n\n"
+                "> 公众号: 示例论文分析号\n\n---\n\n"
                 "![头图](https://example.test/ad.png)\n\n"
                 "朋友们，30天学会统计学公益课上线了！\n\n"
                 "发送“报名”到本公众号，加入微信学习群吧。\n\n"
@@ -329,7 +329,7 @@ class WeChatDiscoveryApiTests(unittest.TestCase):
         self.assertEqual(200, response.status_code)
         self.assertIn("公众号文章发现", response.text)
         self.assertIn("快速公开搜索", response.text)
-        self.assertNotIn("统计之光医学统计", response.text)
+        self.assertNotIn("示例医学统计号", response.text)
         self.assertIn("/api/ext/platforms/wechat/discover", response.text)
         self.assertIn("/api/ext/platforms/wechat/collect", response.text)
 
@@ -356,7 +356,7 @@ class WeChatDiscoveryApiTests(unittest.TestCase):
             response = client.post(
                 "/api/ext/platforms/wechat/discover",
                 json={
-                    "accounts": ["统计之光医学统计"],
+                    "accounts": ["示例医学统计号"],
                     "per_account": 3,
                     "mode": "wechat_ui",
                 },
@@ -392,7 +392,7 @@ class WeChatDiscoveryApiTests(unittest.TestCase):
                             status="pending",
                             source_url=PUBLIC_URL,
                             title="医学文章",
-                            author="统计之光医学统计",
+                            author="示例医学统计号",
                             published_at="2026-07-30",
                             platform="wechat",
                             cache_path=r"D:\Codex\cache\medical-knowledge-hub\job-1.md",
@@ -413,7 +413,7 @@ class WeChatDiscoveryApiTests(unittest.TestCase):
         ):
             response = client.post(
                 "/api/ext/platforms/wechat/collect",
-                json={"accounts": ["统计之光医学统计"], "per_account": 3},
+                json={"accounts": ["示例医学统计号"], "per_account": 3},
             )
 
         self.assertEqual(200, response.status_code)
@@ -432,7 +432,7 @@ class WeChatDiscoveryApiTests(unittest.TestCase):
                 return MarkdownDocument(
                     source_url=url,
                     title="高分医学文献讲解",
-                    author="医学论文与统计分析",
+                    author="示例论文分析号",
                     published_at="2026-07-30",
                     markdown="# 高分医学文献讲解\n\n有价值的研究正文。",
                 )
@@ -485,7 +485,7 @@ class WeChatPipelineTests(unittest.TestCase):
                 return MarkdownDocument(
                     source_url=url,
                     title=title,
-                    author="统计之光医学统计",
+                    author="示例医学统计号",
                     published_at="2026-07-30",
                     markdown=f"# {title}\n\n正文",
                 )
@@ -501,7 +501,7 @@ class WeChatPipelineTests(unittest.TestCase):
                 ),
             )
             results = asyncio.run(
-                pipeline.run(["统计之光医学统计"], per_account=2)
+                pipeline.run(["示例医学统计号"], per_account=2)
             )
             raw_vault_notes = list((root / "vault").rglob("*.md"))
 

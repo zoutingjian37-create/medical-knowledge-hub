@@ -16,7 +16,7 @@ The primary user is an individual medical researcher building a personal Obsidia
 
 ## Product Purpose
 
-Medical Knowledge Hub collects public content from WeChat, Zhihu, Bilibili, Xiaohongshu, and Douyin, removes advertising and filler, produces research-oriented summaries, and writes only user-approved results into Obsidian. Success means the user can move from a public link to reusable research knowledge with little manual cleanup.
+Medical Knowledge Hub collects public content from WeChat, Zhihu, Bilibili, Xiaohongshu, and Douyin, and discovers medical literature from journal feeds and structured searches. It filters and deduplicates candidates, saves literature to Zotero, produces research-oriented summaries, and writes only user-approved results into Obsidian.
 
 ## Positioning
 
@@ -24,7 +24,7 @@ The product separates source discovery, platform parsing, knowledge distillation
 
 ## Operating Context
 
-The application runs locally on Windows. The normal path is: open the desktop shortcut, paste a public link or find a WeChat public account, let the program parse and filter the source, review the distilled result, and confirm the write to Obsidian. Codex can perform the semi-automatic knowledge compilation step. Original article bodies are temporary; the knowledge record keeps a source URL rather than a permanent raw copy.
+The application runs locally on Windows. The user may paste a public link or manage daily subscriptions for WeChat accounts, journals, feeds, and literature queries. Code performs discovery, filtering, deduplication, Zotero import, and scheduling; Codex performs only the bounded knowledge-distillation step. Original article bodies are temporary, PDFs remain in Zotero, and the knowledge record keeps identifiers and source links.
 
 ## Capabilities and Constraints
 
@@ -33,6 +33,10 @@ The application runs locally on Windows. The normal path is: open the desktop sh
 - The application must not request or expose WeChat Cookie, Token, chat databases, or other personal credentials.
 - Non-WeChat platform reading can use OpenCLI, while collection, filtering, deduplication, review, and Obsidian archiving remain product-owned workflow stages.
 - Saving to Obsidian is review-gated; parsing alone must not silently archive content.
+- Daily automation defaults to off, 08:30, and at most five distilled items. Manual runs remain available while automation is off.
+- Personal subscriptions live outside Git and must be explicitly exported/imported for migration. A fresh clone contains no author-specific sources.
+- Literature discovery reuses RSS/Atom and public bibliographic APIs instead of a general publisher scraper.
+- School access uses a user-controlled browser login and the official Zotero Connector; credentials are never collected.
 - Current routes, module names, and working API contracts should remain stable during visual redesigns.
 - The current product is optimized for one local user. Broader multi-user distribution is an open decision.
 

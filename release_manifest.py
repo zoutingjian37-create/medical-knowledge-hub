@@ -12,6 +12,7 @@ INCLUDED_FILES = {
     "CONTRIBUTORS.md",
     "Dockerfile",
     "LICENSE",
+    "PRODUCT.md",
     "README.md",
     "THIRD_PARTY_NOTICES.md",
     "app.py",
@@ -19,6 +20,7 @@ INCLUDED_FILES = {
     "docker-compose.yml",
     "env.example",
     "install-platform-engines.ps1",
+    "install-automation-task.ps1",
     "install.ps1",
     "launch.ps1",
     "release_manifest.py",
@@ -54,10 +56,18 @@ def build_manifest(root: Path) -> tuple[str, ...]:
         capture_output=True,
         text=True,
         encoding="utf-8",
-        check=True,
+        check=False,
     )
+    if result.returncode == 0:
+        candidates = result.stdout.splitlines()
+    else:
+        candidates = (
+            path.relative_to(project).as_posix()
+            for path in project.rglob("*")
+            if path.is_file()
+        )
     selected = []
-    for raw in result.stdout.splitlines():
+    for raw in candidates:
         relative = raw.replace("\\", "/").strip()
         parts = set(Path(relative).parts)
         if not relative or parts.intersection(EXCLUDED_PARTS):

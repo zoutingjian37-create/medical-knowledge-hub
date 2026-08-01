@@ -5,6 +5,7 @@
         { label: "概览", path: "/admin.html" },
         { label: "粘贴链接", path: "/inbox.html" },
         { label: "公众号查找", path: "/wechat-collect.html" },
+        { label: "订阅中心", path: "/subscriptions.html" },
         { label: "查看与保存", path: "/review.html" },
         { label: "平台状态", path: "/platforms.html" },
     ];
