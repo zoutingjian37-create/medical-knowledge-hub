@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>公众号文章发现</title>
+  <link rel="stylesheet" href="/static/css/app.css">
+  <style>
+    body{background:#f6f8fb;color:#172033;font-family:system-ui,"Microsoft YaHei",sans-serif}
+    main{max-width:820px;margin:0 auto;padding:36px 22px 70px}
+    .panel{background:#fff;border:1px solid #e6eaf0;border-radius:16px;padding:24px}
+    textarea,select,input{width:100%;box-sizing:border-box;padding:12px 14px;border:1px solid #ccd3dd;border-radius:10px;font:inherit;background:#fff}
+    textarea{min-height:145px;line-height:1.7;resize:vertical}
+    .field{display:grid;gap:8px;margin-top:18px}.field:first-child{margin-top:0}
+    .row{display:grid;grid-template-columns:minmax(0,1fr) 150px;gap:14px}
+    .actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:20px}
+    button{border:0;border-radius:10px;padding:11px 18px;font:inherit;cursor:pointer;background:#1677ff;color:#fff}
+    button.secondary{background:#eef4ff;color:#155eef}
+    button:disabled{opacity:.55;cursor:wait}
+    .hint{color:#667085;line-height:1.65}
+    #result{margin-top:18px;white-space:pre-wrap;background:#f8fafc;border-radius:10px;padding:14px;min-height:28px}
+    @media(max-width:620px){.row{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+<main>
+  <h1>公众号文章发现</h1>
+  <p class="hint">输入公众号名称，先发现公开文章，再进入提炼任务。开源版本不附带任何个人订阅。</p>
+  <section class="panel">
+    <div class="field">
+      <label for="accounts"><strong>公众号名称（每行一个）</strong></label>
+      <textarea id="accounts" placeholder="例如：示例医学公众号"></textarea>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label for="mode"><strong>发现方式</strong></label>
+        <select id="mode">
+          <option value="public">快速公开搜索（推荐）</option>
+          <option value="wechat_ui">微信界面补全（慢速备用）</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="perAccount"><strong>每个公众号</strong></label>
+        <input id="perAccount" type="number" min="1" max="50" value="10">
+      </div>
+    </div>
+    <p class="hint"><strong>快速公开搜索</strong>使用 OpenCLI 和公开搜索页，不操作桌面微信。<strong>微信界面补全</strong>才会调用 pywechat，适合公开搜索缺失时手动补充。</p>
+    <div class="actions">
+      <button class="secondary" id="discover">只查看候选链接</button>
+      <button id="collect">查找并加入待处理</button>
+    </div>
+    <p class="hint">程序不会读取微信 Cookie、Token、聊天数据库或账号密码。搜索结果在解析后会核对公众号作者，名称不匹配的文章不会入队。</p>
+    <div id="result" aria-live="polite">等待开始</div>
+  </section>
+</main>
+<script>
+  const result = document.getElementById("result");
+  const buttons = Array.from(document.querySelectorAll("button"));
+  function payload(){
+    return {
+      accounts: document.getElementById("accounts").value.split(/\r?\n/).map(v=>v.trim()).filter(Boolean),
+      per_account: Number(document.getElementById("perAccount").value || 10),
+      mode: document.getElementById("mode").value
+    };
+  }
+  async function run(path){
+    const request = payload();
+    if(!request.accounts.length){ result.textContent="请至少输入一个公众号名称。"; return; }
+    buttons.forEach(button=>button.disabled=true);
+    result.textContent=request.mode==="public" ? "正在通过公开搜索发现文章……" : "正在操作本机微信，请暂时不要切换微信窗口……";
+    try{
+      const response=await fetch(path,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(request)});
+      const data=await response.json();
+      if(!response.ok) throw new Error(data.detail || "操作失败");
+      if(data.links) result.textContent=data.links.length ? data.links.join("\n") : "没有发现公开文章候选";
+      else result.textContent=data.results.map(item=>`${item.status}: ${item.title || item.job_id || item.reason}`).join("\n") || "没有新文章需要提炼";
+    }catch(error){ result.textContent="未完成："+error.message; }
+    finally{ buttons.forEach(button=>button.disabled=false); }
+  }
+  document.getElementById("discover").addEventListener("click",()=>run("/api/ext/platforms/wechat/discover"));
+  document.getElementById("collect").addEventListener("click",()=>run("/api/ext/platforms/wechat/collect"));
+</script>
+<script src="/static/js/api-client.js"></script>
+<script src="/static/js/app-shell.js"></script>
+</body>
+</html>

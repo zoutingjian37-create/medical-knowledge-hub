@@ -1,0 +1,4 @@
+interface:
+  display_name: "医学文献提炼"
+  short_description: "将医学论文与文献讲解提炼为可复用的科研知识卡和可迁移选题建议"
+  default_prompt: "使用 $distill-medical-literature 提炼这篇医学文献讲解，去除广告，生成等待确认的 Obsidian 预览。"

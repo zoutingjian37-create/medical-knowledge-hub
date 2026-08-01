@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>粘贴链接 - Medical Knowledge Hub</title>
+    <link rel="stylesheet" href="/static/css/app.css">
+    <style>
+        body { background:#f6f8fb; color:#172033; font-family:system-ui,"Microsoft YaHei",sans-serif; }
+        main { max-width:900px; margin:0 auto; padding:34px 24px 72px; }
+        h1 { margin:0 0 8px; font-size:28px; }
+        .lead { color:#667085; margin:0 0 24px; line-height:1.65; }
+        .panel { background:#fff; border:1px solid #e7eaf0; border-radius:14px; padding:22px; }
+        .row { display:grid; grid-template-columns:1fr auto; gap:10px; }
+        input { width:100%; box-sizing:border-box; border:1px solid #d0d5dd; border-radius:9px; padding:12px 13px; font:inherit; }
+        button, .button { border:0; border-radius:9px; padding:11px 18px; background:#1677ff; color:#fff; font-weight:650; cursor:pointer; text-decoration:none; }
+        button.secondary { background:#eef4ff; color:#175cd3; }
+        .actions { display:flex; gap:10px; margin-top:14px; flex-wrap:wrap; }
+        .result { display:none; margin-top:20px; border-top:1px solid #eaecf0; padding-top:20px; }
+        .result.show { display:block; }
+        .result h2 { margin:0 0 5px; }
+        .meta { color:#667085; font-size:14px; margin-bottom:16px; }
+        .preview { white-space:pre-wrap; line-height:1.75; max-height:420px; overflow:auto; background:#f8fafc; border-radius:10px; padding:16px; }
+        .error { color:#b42318; }
+        @media(max-width:680px){ .row{grid-template-columns:1fr;} }
+    </style>
+</head>
+<body>
+<main>
+    <h1>粘贴链接</h1>
+    <p class="lead">粘贴一个公开链接，系统会自动识别平台并提取重点。支持微信、知乎、B站、小红书和抖音；确认前不会保存到 Obsidian。</p>
+    <section class="panel">
+        <div class="row">
+            <input id="articleUrl" type="url" autocomplete="off" placeholder="粘贴微信 / 知乎 / B站 / 小红书 / 抖音公开链接" aria-label="公开内容链接">
+            <button id="parseButton">提取并生成预览</button>
+        </div>
+        <div id="result" class="result" aria-live="polite">
+            <h2 id="title"></h2>
+            <div id="meta" class="meta"></div>
+            <div id="preview" class="preview"></div>
+            <div class="actions"><a id="reviewLink" class="button" href="/review.html" hidden>查看预览并确认保存</a></div>
+        </div>
+    </section>
+</main>
+<script src="/static/js/api-client.js"></script>
+<script src="/static/js/app-shell.js"></script>
+<script>
+(function () {
+    "use strict";
+    var result = document.getElementById("result");
+    var title = document.getElementById("title");
+    var meta = document.getElementById("meta");
+    var preview = document.getElementById("preview");
+    var reviewLink = document.getElementById("reviewLink");
+    var parseButton = document.getElementById("parseButton");
+    var currentJobId = "";
+
+    parseButton.addEventListener("click", async function () {
+        var url = document.getElementById("articleUrl").value.trim();
+        if (!url) return;
+        parseButton.disabled = true;
+        result.className = "result show";
+        title.textContent = "正在提取…";
+        meta.textContent = "";
+        preview.textContent = "";
+        preview.className = "preview";
+        reviewLink.hidden = true;
+        currentJobId = "";
+        try {
+            var response = await window.ContentHubAPI.post("/api/ext/platforms/queue", { url: url });
+            currentJobId = response.job_id || "";
+            reviewLink.href = "/review.html#" + currentJobId;
+            reviewLink.hidden = !currentJobId;
+            var platformNames = {wechat:"微信", zhihu:"知乎", bilibili:"B站", xiaohongshu:"小红书", douyin:"抖音"};
+            title.textContent = response.title || "内容已解析";
+            meta.textContent = (platformNames[response.platform] || response.platform) + " · " + (response.author || "未识别作者");
+            if (["pending", "failed", "handoff_ready"].includes(response.status)) {
+                preview.textContent = "链接已读取，正在提取重点，通常需要一至数分钟。请保持本页打开。";
+                await window.ContentHubAPI.post(
+                    "/api/ext/knowledge/jobs/" + response.job_id + "/compile",
+                    {}
+                );
+            }
+            title.textContent = "预览已生成";
+            preview.textContent = "内容还没有保存到 Obsidian。请先查看预览，再确认保存。";
+            reviewLink.hidden = false;
+        } catch (error) {
+            title.textContent = "提取失败";
+            preview.textContent = error.message;
+            preview.className = "preview error";
+            reviewLink.hidden = !currentJobId;
+        } finally {
+            parseButton.disabled = false;
+        }
+    });
+
+}());
+</script>
+</body>
+</html>

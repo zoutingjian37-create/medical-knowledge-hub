@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#f4f6f7">
+    <title>首页 - Medical Knowledge Hub</title>
+    <link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+    <!--
+    THESIS: 科研索引工作台把采集、提炼、确认和归档组织成一条可执行路径，拒绝营销首页式卡片陈列。
+    OWN-WORLD: 冷白工作面、墨蓝文字、青绿状态色；索引行、任务面板和清晰分隔承担层级。
+    STORY: 用户开始采集，继续审阅，确认后写入 Obsidian，并随时检查平台状态。
+    FIRST VIEWPORT: 左侧固定导航，顶部是紧凑任务标题和主操作，主体左侧开始任务，右侧解释流程。
+    FORM: 科研资料索引台，方向列表第 3 项，seed 303bb36e。
+    FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, and DESIGN.md
+    -->
+    <div id="app-shell"></div>
+    <main class="page-shell">
+        <header class="workspace-header">
+            <div>
+                <h1>开始整理研究资料</h1>
+                <p>支持微信、知乎、B站、小红书和抖音，自动识别并提取内容。</p>
+            </div>
+        </header>
+
+        <div class="workspace-note">
+            <strong>本地处理，确认后归档</strong>
+            <span>原始链接经过提炼和预览后，才会写入你的 Obsidian 知识库。</span>
+        </div>
+
+        <section class="workspace-grid" aria-label="主要工作区">
+            <section class="workspace-panel workspace-panel--primary">
+                <header class="section-heading">
+                    <div>
+                        <h2>采集内容</h2>
+                        <p>选择最适合当前资料的入口。</p>
+                    </div>
+                </header>
+                <div class="action-list">
+                    <a class="action-row action-row--primary" href="/inbox.html">
+                        <span class="action-row__content">
+                            <strong>粘贴新链接</strong>
+                            <small>粘贴文章或视频链接，自动提取重点。</small>
+                        </span>
+                        <span class="action-row__verb">开始</span>
+                    </a>
+                    <a class="action-row" href="/wechat-collect.html">
+                        <span class="action-row__content">
+                            <strong>查找微信公众号</strong>
+                            <small>按公众号名称查找公开文章，并加入待处理列表。</small>
+                        </span>
+                        <span class="action-row__verb">打开</span>
+                    </a>
+                </div>
+            </section>
+
+            <aside class="workspace-panel workflow-panel">
+                <header class="section-heading">
+                    <div>
+                        <h2>工作流程</h2>
+                        <p>每一步都能单独检查。</p>
+                    </div>
+                </header>
+                <ol class="workflow-list">
+                    <li><strong>采集</strong><span>读取公开链接</span></li>
+                    <li><strong>提炼</strong><span>过滤广告与无关内容</span></li>
+                    <li><strong>确认</strong><span>查看知识预览</span></li>
+                    <li><strong>归档</strong><span>写入 Obsidian</span></li>
+                </ol>
+            </aside>
+        </section>
+
+        <section class="workspace-panel continue-panel">
+            <header class="section-heading">
+                <div>
+                    <h2>继续工作</h2>
+                    <p>处理已采集的资料，或检查连接状态。</p>
+                </div>
+            </header>
+            <div class="tool-list">
+                <a href="/review.html">
+                    <span><strong>查看与保存</strong><small>查看提取结果；确认后保存到 Obsidian。</small></span>
+                    <span>进入待处理列表</span>
+                </a>
+                <a href="/platforms.html">
+                    <span><strong>平台状态</strong><small>检查各平台现在能不能正常读取内容。</small></span>
+                    <span>检查连接</span>
+                </a>
+                <a href="/api/docs">
+                    <span><strong>接口说明</strong><small>查看本地接口，供开发和排错使用。</small></span>
+                    <span>查看文档</span>
+                </a>
+            </div>
+        </section>
+
+        <footer class="page-footer">
+            <span>Medical Knowledge Hub 在你的电脑本地运行</span>
+            <a href="https://github.com/zoutingjian37-create/medical-knowledge-hub">GitHub 仓库</a>
+        </footer>
+    </main>
+    <script src="/static/js/api-client.js"></script>
+    <script src="/static/js/app-shell.js"></script>
+</body>
+</html>

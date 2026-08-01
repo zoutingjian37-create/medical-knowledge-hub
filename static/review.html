@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>查看与保存 - Medical Knowledge Hub</title>
+    <link rel="stylesheet" href="/static/css/app.css">
+    <style>
+        body { margin:0; background:#f6f8fb; color:#172033; font-family:system-ui,"Microsoft YaHei",sans-serif; }
+        main { max-width:1050px; margin:0 auto; padding:34px 24px 72px; }
+        h1 { margin:0 0 8px; font-size:30px; }
+        .lead { margin:0 0 24px; color:#667085; line-height:1.65; }
+        .toolbar { display:flex; gap:10px; align-items:center; margin-bottom:18px; }
+        button, .button { border:0; border-radius:9px; padding:9px 14px; background:#1677ff; color:#fff; font:inherit; font-weight:650; cursor:pointer; text-decoration:none; }
+        button.secondary { background:#eef4ff; color:#175cd3; }
+        button.danger { background:#fff1f0; color:#b42318; }
+        button:disabled { opacity:.55; cursor:wait; }
+        .list { display:grid; gap:14px; }
+        .card { background:#fff; border:1px solid #e7eaf0; border-radius:14px; padding:19px; }
+        .card__top { display:flex; justify-content:space-between; gap:14px; align-items:flex-start; }
+        .card h2 { margin:0 0 7px; font-size:18px; }
+        .meta { color:#667085; font-size:14px; line-height:1.6; }
+        .status { flex:0 0 auto; border-radius:999px; padding:5px 10px; background:#f2f4f7; color:#475467; font-size:12px; }
+        .actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:15px; }
+        .message { margin-top:12px; color:#175cd3; min-height:20px; }
+        .empty { padding:36px; text-align:center; background:#fff; border:1px dashed #cfd5df; border-radius:14px; color:#667085; }
+        dialog { width:min(900px,calc(100vw - 32px)); max-height:85vh; border:0; border-radius:14px; padding:0; box-shadow:0 24px 80px rgba(16,24,40,.24); }
+        dialog::backdrop { background:rgba(16,24,40,.48); }
+        .dialog-head { display:flex; justify-content:space-between; align-items:center; padding:16px 20px; border-bottom:1px solid #eaecf0; }
+        .dialog-body { margin:0; padding:20px; max-height:65vh; overflow:auto; white-space:pre-wrap; line-height:1.75; background:#fbfcfe; }
+        @media(max-width:680px){ .card__top{display:block}.status{display:inline-block;margin-top:10px} }
+    </style>
+</head>
+<body>
+<main>
+    <h1>查看与保存</h1>
+    <p class="lead">这里显示已经提取的内容。检查无误后，点击“确认保存”写入 Obsidian。</p>
+    <div class="toolbar">
+        <button id="refresh" class="secondary">刷新任务</button>
+        <a class="button" href="/inbox.html">粘贴新链接</a>
+        <a class="button" href="/wechat-collect.html">查找公众号</a>
+    </div>
+    <section id="jobs" class="list" aria-live="polite"></section>
+</main>
+
+<dialog id="previewDialog">
+    <div class="dialog-head">
+        <strong>内容预览</strong>
+        <button id="closePreview" class="secondary">关闭</button>
+    </div>
+    <pre id="previewText" class="dialog-body"></pre>
+</dialog>
+
+<script src="/static/js/api-client.js"></script>
+<script src="/static/js/app-shell.js"></script>
+<script>
+(function () {
+    "use strict";
+    var jobsRoot = document.getElementById("jobs");
+    var dialog = document.getElementById("previewDialog");
+    var previewText = document.getElementById("previewText");
+    var labels = {
+        pending: "等待处理",
+        handoff_ready: "正在处理",
+        preview_ready: "等待确认",
+        needs_reparse: "需要重新读取",
+        approved: "已保存",
+        rejected: "已删除",
+        failed: "处理失败"
+    };
+
+    function button(label, className, action) {
+        var element = document.createElement("button");
+        element.textContent = label;
+        if (className) element.className = className;
+        element.addEventListener("click", action);
+        return element;
+    }
+
+    async function post(path) {
+        return window.ContentHubAPI.post(path, {});
+    }
+
+    function setMessage(card, value) {
+        card.querySelector(".message").textContent = value;
+    }
+
+    function renderJob(job) {
+        var card = document.createElement("article");
+        card.className = "card";
+        var top = document.createElement("div");
+        top.className = "card__top";
+        var summary = document.createElement("div");
+        var heading = document.createElement("h2");
+        heading.textContent = job.title || "未命名文章";
+        var meta = document.createElement("div");
+        meta.className = "meta";
+        meta.textContent = (job.author || "未识别来源") + (job.published_at ? " · " + job.published_at : "");
+        summary.append(heading, meta);
+        var status = document.createElement("span");
+        status.className = "status";
+        status.textContent = labels[job.status] || job.status;
+        top.append(summary, status);
+        var actions = document.createElement("div");
+        actions.className = "actions";
+
+        if (job.status === "needs_reparse") {
+            actions.append(button("重新读取", "", async function () {
+                try {
+                    await window.ContentHubAPI.post(
+                        "/api/ext/platforms/queue",
+                        { url: job.source_url }
+                    );
+                    await loadJobs();
+                } catch (error) { setMessage(card, error.message); }
+            }));
+        }
+        if (["pending", "failed", "handoff_ready"].includes(job.status)) {
+            actions.append(button("自动提取重点", "", async function (event) {
+                var control = event.currentTarget;
+                control.disabled = true;
+                setMessage(card, "正在提取重点并生成预览，通常需要一至数分钟……");
+                try {
+                    await post("/api/ext/knowledge/jobs/" + job.id + "/compile");
+                    await loadJobs();
+                } catch (error) {
+                    setMessage(card, error.message);
+                    control.disabled = false;
+                }
+            }));
+        }
+        if (["pending", "failed"].includes(job.status)) {
+            actions.append(button("复制任务给 Codex", "secondary", async function () {
+                try {
+                    var result = await post("/api/ext/knowledge/jobs/" + job.id + "/handoff");
+                    await navigator.clipboard.writeText(result.instruction);
+                    setMessage(card, "任务说明已复制。请在 Codex 中粘贴并执行，然后回来点击“导入 Codex 结果”。");
+                } catch (error) { setMessage(card, error.message); }
+            }));
+        }
+        if (job.status === "handoff_ready") {
+            actions.append(button("导入 Codex 结果", "", async function () {
+                try {
+                    await post("/api/ext/knowledge/jobs/" + job.id + "/import-preview");
+                    await loadJobs();
+                } catch (error) { setMessage(card, error.message); }
+            }));
+        }
+        if (job.status === "preview_ready") {
+            actions.append(button("查看预览", "secondary", async function () {
+                try {
+                    var result = await window.ContentHubAPI.get("/api/ext/knowledge/jobs/" + job.id + "/preview");
+                    previewText.textContent = result.markdown;
+                    dialog.showModal();
+                } catch (error) { setMessage(card, error.message); }
+            }));
+            actions.append(button("确认保存", "", async function () {
+                if (!window.confirm("确认把这份内容保存到 Obsidian？")) return;
+                try {
+                    await post("/api/ext/knowledge/jobs/" + job.id + "/approve");
+                    await loadJobs();
+                } catch (error) { setMessage(card, error.message); }
+            }));
+        }
+        if (!["approved", "rejected"].includes(job.status)) {
+            actions.append(button("删除", "danger", async function () {
+                if (!window.confirm("删除后会清理这篇文章的临时正文，是否继续？")) return;
+                try {
+                    await post("/api/ext/knowledge/jobs/" + job.id + "/reject");
+                    await loadJobs();
+                } catch (error) { setMessage(card, error.message); }
+            }));
+        }
+        var message = document.createElement("div");
+        message.className = "message";
+        if (job.error) message.textContent = job.error;
+        card.append(top, actions, message);
+        return card;
+    }
+
+    async function loadJobs() {
+        jobsRoot.textContent = "正在读取任务……";
+        try {
+            var data = await window.ContentHubAPI.get("/api/ext/knowledge/jobs");
+            jobsRoot.textContent = "";
+            if (!data.jobs.length) {
+                var empty = document.createElement("div");
+                empty.className = "empty";
+                empty.textContent = "还没有待处理内容。";
+                jobsRoot.append(empty);
+                return;
+            }
+            data.jobs.slice().reverse().forEach(function (job) {
+                jobsRoot.append(renderJob(job));
+            });
+        } catch (error) {
+            jobsRoot.textContent = "任务读取失败：" + error.message;
+        }
+    }
+
+    document.getElementById("refresh").addEventListener("click", loadJobs);
+    document.getElementById("closePreview").addEventListener("click", function () { dialog.close(); });
+    loadJobs();
+}());
+</script>
+</body>
+</html>
