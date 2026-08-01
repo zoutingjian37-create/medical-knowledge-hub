@@ -39,6 +39,7 @@ class WindowsPackagingTests(unittest.TestCase):
         self.assertIn("start.sh", manifest)
         self.assertIn("status.sh", manifest)
         self.assertIn("assets/medical-knowledge-hub.ico", manifest)
+        self.assertIn("assets/medical-knowledge-hub-20260802.ico", manifest)
         self.assertIn("assets/medical-knowledge-hub.svg", manifest)
         self.assertIn("tools/build_icon_assets.py", manifest)
         self.assertIn("docs/CODEX_REPRODUCTION.md", manifest)
@@ -61,6 +62,7 @@ class WindowsPackagingTests(unittest.TestCase):
         self.assertIn("start.bat", installer)
         self.assertIn("$Shortcut.TargetPath = $Launcher", installer)
         self.assertIn("$Shortcut.IconLocation = $Icon", installer)
+        self.assertIn("medical-knowledge-hub-20260802.ico", installer)
         self.assertIn("ie4uinit.exe", installer)
         self.assertNotIn("$Shortcut.TargetPath = $PowerShell", installer)
         self.assertIn("[switch]$SkipWeChatDiscovery", installer)
@@ -73,6 +75,12 @@ class WindowsPackagingTests(unittest.TestCase):
 
         self.assertEqual(b"\x00\x00\x01\x00", data[:4])
         self.assertGreaterEqual(int.from_bytes(data[4:6], "little"), 4)
+
+    def test_versioned_icon_exists_to_bypass_windows_icon_cache(self):
+        icon = ROOT / "assets" / "medical-knowledge-hub-20260802.ico"
+
+        self.assertTrue(icon.is_file())
+        self.assertEqual(b"\x00\x00\x01\x00", icon.read_bytes()[:4])
 
     def test_icon_visual_language_comes_from_the_product_name(self):
         svg = (ROOT / "assets" / "medical-knowledge-hub.svg").read_text("utf-8")

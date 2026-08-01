@@ -98,11 +98,16 @@ def main() -> None:
         rendered.save(PNG_DIR / f"medical-knowledge-hub-{size}.png", optimize=True)
 
     images[256].save(ASSETS / "medical-knowledge-hub.png", optimize=True)
-    images[256].save(
-        ASSETS / "medical-knowledge-hub.ico",
-        format="ICO",
-        sizes=[(size, size) for size in SIZES if size != 24],
-    )
+    icon_sizes = [(size, size) for size in SIZES if size != 24]
+    for filename in (
+        "medical-knowledge-hub.ico",
+        "medical-knowledge-hub-20260802.ico",
+    ):
+        images[256].save(
+            ASSETS / filename,
+            format="ICO",
+            sizes=icon_sizes,
+        )
 
 
 if __name__ == "__main__":

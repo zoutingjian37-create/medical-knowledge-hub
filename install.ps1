@@ -79,7 +79,8 @@ if ($CreateDesktopShortcut) {
     $Shell = New-Object -ComObject WScript.Shell
     $Shortcut = $Shell.CreateShortcut((Join-Path $Desktop "Medical Knowledge Hub.lnk"))
     $Launcher = Join-Path $ResolvedInstall "start.bat"
-    $Icon = Join-Path $ResolvedInstall "assets\medical-knowledge-hub.ico"
+    # Explorer caches shortcut icons by path, so upgrades use a versioned path.
+    $Icon = Join-Path $ResolvedInstall "assets\medical-knowledge-hub-20260802.ico"
     $Shortcut.TargetPath = $Launcher
     $Shortcut.IconLocation = $Icon
     $Shortcut.WorkingDirectory = $ResolvedInstall
@@ -87,6 +88,7 @@ if ($CreateDesktopShortcut) {
     $Shortcut.Save()
     $IconRefresh = Join-Path $env:SystemRoot "System32\ie4uinit.exe"
     if (Test-Path -LiteralPath $IconRefresh) {
+        & $IconRefresh -ClearIconCache
         & $IconRefresh -show
     }
 }
