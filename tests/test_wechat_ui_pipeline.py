@@ -327,7 +327,9 @@ class WeChatDiscoveryApiTests(unittest.TestCase):
             response = client.get("/wechat-collect.html")
 
         self.assertEqual(200, response.status_code)
-        self.assertIn("统计之光医学统计", response.text)
+        self.assertIn("公众号文章发现", response.text)
+        self.assertIn("快速公开搜索", response.text)
+        self.assertNotIn("统计之光医学统计", response.text)
         self.assertIn("/api/ext/platforms/wechat/discover", response.text)
         self.assertIn("/api/ext/platforms/wechat/collect", response.text)
 
@@ -353,11 +355,18 @@ class WeChatDiscoveryApiTests(unittest.TestCase):
         ):
             response = client.post(
                 "/api/ext/platforms/wechat/discover",
-                json={"accounts": ["统计之光医学统计"], "per_account": 3},
+                json={
+                    "accounts": ["统计之光医学统计"],
+                    "per_account": 3,
+                    "mode": "wechat_ui",
+                },
             )
 
         self.assertEqual(200, response.status_code)
-        self.assertEqual({"links": [PUBLIC_URL]}, response.json())
+        self.assertEqual(
+            {"links": [PUBLIC_URL], "mode": "wechat_ui"},
+            response.json(),
+        )
         serialized = response.text.lower()
         self.assertNotIn("cookie", serialized)
         self.assertNotIn("token", serialized)

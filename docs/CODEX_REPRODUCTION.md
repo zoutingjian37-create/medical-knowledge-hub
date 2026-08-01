@@ -5,7 +5,7 @@
 ## 不可改变的产品边界
 
 - 支持微信、知乎、B站、小红书、抖音公开链接；五个平台统一进入 `KnowledgeJobQueue`。
-- 微信使用公开链接解析；其他四个平台复用 OpenCLI 与 Browser Bridge，不复制爬虫。
+- 微信默认使用 OpenCLI 公开搜索、Browser Bridge 跳转解析和公开链接下载；其他四个平台同样复用 OpenCLI，不复制爬虫。
 - Codex 只生成预览；只有本地服务的 `/approve` 在用户确认后可以写 Vault。
 - 不收集平台密码、Cookie、Token、聊天数据库或微信个人资料。
 - 原始正文只进入 `D:\Codex\cache\medical-knowledge-hub`，确认或拒绝后删除，不能提交 Git。
@@ -14,9 +14,9 @@
 ## 数据流和状态机
 
 ```text
-公开 URL
-  → URL 平台识别
-  → OpenCLI/微信链接解析器
+公开 URL / 公众号名称
+  → URL 平台识别 / 微信公开搜索
+  → OpenCLI 跳转解析与内容读取
   → 平台无关 MarkdownDocument
   → 广告清理与去重
   → pending
@@ -81,6 +81,7 @@ Invoke-RestMethod http://127.0.0.1:5000/api/ext/platforms
 - `routes_ext/platforms.py`：统一链接 API 和旧微信兼容入口。
 - `extensions/platforms/url_router.py`：纯 URL 平台识别。
 - `extensions/platforms/opencli/adapter.py`：四个平台共享适配器。
+- `extensions/platforms/wechat/discovery.py`：默认公开搜索发现器与显式微信 UI 备用发现器。
 - `extensions/platforms/wechat/parser.py`：微信公开链接解析。
 - `extensions/processing/job_queue.py`：广告清理、去重与入队。
 - `extensions/processing/compiler.py`：Codex 预览、路径校验和确认写入。
@@ -92,10 +93,10 @@ Invoke-RestMethod http://127.0.0.1:5000/api/ext/platforms
 1. 桌面图标消失：重新运行安装器；检查快捷方式目标是否为 `start.bat`。
 2. 服务不起：看 `D:\Codex\state\medical-knowledge-hub\logs\server.err.log`。
 3. 链接不支持：核对域名和内容 URL 形态，不要放宽到任意域名。
-4. OpenCLI 不可用：检查 `/api/ext/platforms/{platform}/health`、Browser Bridge 和网页登录状态。
+4. OpenCLI 不可用：检查 `/api/ext/platforms/{platform}/health`、Browser Bridge 和网页登录状态；微信临时验证页允许程序完成一次等待重试。
 5. Codex 失败：检查 `.env` 的 CLI 路径、`login status` 和 Skill 安装目录。
 6. Vault 不写：确认任务是 `preview_ready`、用户点击了确认、Vault 路径是根目录。
 
 ## 给接管 Codex 的执行指令
 
-先阅读本文件、README、设计文档和测试。优先修复现有适配边界，不引入第二套平台爬虫。任何代码修改先写失败测试，再实现；完成前必须执行全量测试和至少一条真实公开链接到 `preview_ready` 的验收。不得提交 `.env`、缓存、任务状态、原文、Cookie、Token、Vault 文件或发布压缩包。
+先阅读本文件、README、设计文档和测试。优先修复现有适配边界，不引入第二套平台爬虫。公众号日常发现必须优先使用 `mode=public`；Computer Use 只用于人工诊断，不是生产采集器。任何代码修改先写失败测试，再实现；完成前必须执行全量测试和至少一条真实公开链接到 `preview_ready` 的验收。不得提交 `.env`、缓存、任务状态、原文、Cookie、Token、Vault 文件或发布压缩包。

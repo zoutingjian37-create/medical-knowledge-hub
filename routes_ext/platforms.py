@@ -2,6 +2,8 @@
 
 import asyncio
 from dataclasses import asdict
+import inspect
+from typing import Literal
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
@@ -9,8 +11,9 @@ from pydantic import BaseModel, Field
 from extensions.platforms.base import PlatformError
 from extensions.platforms.registry import platform_registry
 from extensions.platforms.wechat.discovery import (
+    OpenCLIWeChatDiscoverer,
+    WeChatDiscoveryError,
     WeChatUIDiscoverer,
-    WeChatUIDiscoveryError,
 )
 from extensions.platforms.wechat.parser import OpenCLIWeChatParser
 from extensions.platforms.wechat.pipeline import WeChatPipeline
@@ -36,23 +39,22 @@ class PlatformFetchRequest(BaseModel):
 class WeChatDiscoverRequest(BaseModel):
     accounts: list[str] = Field(min_length=1, max_length=20)
     per_account: int = Field(default=10, ge=1, le=50)
+    mode: Literal["public", "wechat_ui"] = "public"
 
 
 @router.post(
     "/platforms/wechat/discover",
-    summary="Discover public article links through the local WeChat UI",
+    summary="Discover public WeChat article links",
 )
 async def discover_wechat_links(request: WeChatDiscoverRequest):
-    discoverer = WeChatUIDiscoverer()
+    discoverer = _wechat_discoverer(request.mode)
     try:
-        links = await asyncio.to_thread(
-            discoverer.discover,
-            request.accounts,
-            request.per_account,
+        links = await _discover_links(
+            discoverer, request.accounts, request.per_account
         )
-    except WeChatUIDiscoveryError as exc:
+    except WeChatDiscoveryError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
-    return {"links": list(links)}
+    return {"links": list(links), "mode": request.mode}
 
 
 @router.post(
@@ -61,15 +63,18 @@ async def discover_wechat_links(request: WeChatDiscoverRequest):
 )
 async def collect_wechat_articles(request: WeChatDiscoverRequest):
     pipeline = WeChatPipeline(
-        discoverer=WeChatUIDiscoverer(),
+        discoverer=_wechat_discoverer(request.mode),
         parser=OpenCLIWeChatParser(),
         queue=KnowledgeJobQueue(),
     )
     try:
         results = await pipeline.run(request.accounts, request.per_account)
-    except (RuntimeError, ValueError, WeChatUIDiscoveryError) as exc:
+    except (RuntimeError, ValueError, WeChatDiscoveryError) as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
-    return {"results": [_queue_payload(result) for result in results]}
+    return {
+        "results": [_queue_payload(result) for result in results],
+        "mode": request.mode,
+    }
 
 
 @router.post(
@@ -165,3 +170,16 @@ def _queue_payload(result: QueueResult) -> dict:
         "title": job.title if job else "",
         "author": job.author if job else "",
     }
+
+
+def _wechat_discoverer(mode: str):
+    if mode == "wechat_ui":
+        return WeChatUIDiscoverer()
+    return OpenCLIWeChatDiscoverer()
+
+
+async def _discover_links(discoverer, accounts, per_account):
+    method = discoverer.discover
+    if inspect.iscoroutinefunction(method):
+        return await method(accounts, per_account)
+    return await asyncio.to_thread(method, accounts, per_account)

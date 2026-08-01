@@ -29,7 +29,7 @@ The application runs locally on Windows. The normal path is: open the desktop sh
 ## Capabilities and Constraints
 
 - Manual public-link parsing is the dependable entry point for all five platforms.
-- WeChat public-account UI discovery is optional and may break when the desktop WeChat interface changes.
+- WeChat public-account discovery defaults to OpenCLI public search and redirect resolution; desktop WeChat UI discovery is an explicit slow fallback and may break when WeChat changes.
 - The application must not request or expose WeChat Cookie, Token, chat databases, or other personal credentials.
 - Non-WeChat platform reading can use OpenCLI, while collection, filtering, deduplication, review, and Obsidian archiving remain product-owned workflow stages.
 - Saving to Obsidian is review-gated; parsing alone must not silently archive content.

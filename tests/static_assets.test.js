@@ -135,7 +135,9 @@ test("secondary pages use concise descriptions", () => {
     assert.match(inbox, /<h1>粘贴链接<\/h1>/);
     assert.match(review, /<h1>查看与保存<\/h1>/);
     assert.match(platforms, /<h1>平台状态<\/h1>/);
-    assert.match(wechat, /<h1>公众号批量查找<\/h1>/);
+    assert.match(wechat, /<h1>公众号文章发现<\/h1>/);
+    assert.match(wechat, /快速公开搜索/);
+    assert.match(wechat, /微信界面补全/);
 });
 
 test("review page exposes the complete review-gated workflow", () => {
