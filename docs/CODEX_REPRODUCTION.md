@@ -26,8 +26,10 @@
   → preview_ready
   → 用户查看
      ├─ approve → Obsidian 证据卡/Wiki/日志 → 删除缓存
-     └─ reject  → 删除缓存，不写 Obsidian
+     └─ trash   → 回收站 → restore 或到期/手动永久删除
 ```
+
+活动任务接口默认排除 `trashed` 和兼容旧版本的 `rejected` 状态。回收站保留期默认 7 天，合法范围为 1–30 天；软删除阶段不得删除缓存或预览，永久删除阶段只允许清理本地任务、缓存、handoff 和 preview，不得删除 Zotero 或 Obsidian 内容。
 
 订阅链路是另一条入口，但与手动链接共用同一提炼和审批边界：
 

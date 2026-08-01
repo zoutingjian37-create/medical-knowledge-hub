@@ -275,11 +275,46 @@ class KnowledgeCompilerTests(unittest.TestCase):
         accepted = self._compiler().accept_preview(self.job.id, current, [])
         self.assertEqual("preview_ready", accepted.status)
 
-    def test_reject_deletes_temporary_source_without_writing_vault(self):
-        rejected = self._compiler().reject(self.job.id)
+    def test_trash_hides_job_without_deleting_local_artifacts(self):
+        compiler = self._compiler()
+        compiler.accept_preview(self.job.id, _preview(), [])
 
-        self.assertEqual("rejected", rejected.status)
-        self.assertFalse(Path(self.job.cache_path).exists())
+        trashed = compiler.trash(self.job.id)
+
+        self.assertEqual("trashed", trashed.status)
+        self.assertEqual("preview_ready", trashed.status_before_trash)
+        self.assertTrue(trashed.deleted_at)
+        self.assertTrue(Path(self.job.cache_path).exists())
+        self.assertTrue(Path(trashed.preview_path).exists())
+        self.assertEqual((), self.store.list())
+        self.assertEqual((trashed,), self.store.list_trash())
+
+    def test_restore_returns_a_trashed_job_to_its_previous_status(self):
+        compiler = self._compiler()
+        compiler.accept_preview(self.job.id, _preview(), [])
+        compiler.trash(self.job.id)
+
+        restored = compiler.restore(self.job.id)
+
+        self.assertEqual("preview_ready", restored.status)
+        self.assertEqual("", restored.deleted_at)
+        self.assertEqual("", restored.status_before_trash)
+        self.assertEqual((restored,), self.store.list())
+
+    def test_permanent_delete_removes_only_local_job_artifacts(self):
+        compiler = self._compiler()
+        compiler.accept_preview(self.job.id, _preview(), [])
+        handoff = compiler.prepare_handoff(self.job.id).handoff_path
+        trashed = compiler.trash(self.job.id)
+        self.assertTrue(handoff.exists())
+
+        compiler.delete_permanently(self.job.id)
+
+        self.assertFalse(Path(trashed.cache_path).exists())
+        self.assertFalse(Path(trashed.preview_path).exists())
+        self.assertFalse(handoff.exists())
+        with self.assertRaises(KeyError):
+            self.store.get(self.job.id)
         self.assertEqual([], list(self.vault.rglob("*.md")))
 
     def test_api_lists_jobs_without_exposing_temporary_cache_path(self):
@@ -302,6 +337,48 @@ class KnowledgeCompilerTests(unittest.TestCase):
         self.assertEqual(200, response.status_code)
         self.assertEqual(self.job.id, response.json()["jobs"][0]["id"])
         self.assertNotIn("cache_path", response.text)
+
+    def test_api_moves_jobs_to_trash_restores_and_permanently_deletes_them(self):
+        from fastapi.testclient import TestClient
+        from app import app
+
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "CONTENT_HUB_CACHE_DIR": str(self.cache.root),
+                    "CONTENT_HUB_STATE_DIR": str(self.store.root),
+                },
+            ),
+            TestClient(app) as client,
+        ):
+            moved = client.post(f"/api/ext/knowledge/jobs/{self.job.id}/trash")
+            active = client.get("/api/ext/knowledge/jobs")
+            trash = client.get("/api/ext/knowledge/trash")
+            setting = client.put(
+                "/api/ext/knowledge/trash/settings",
+                json={"retention_days": 30},
+            )
+            workflow = client.put(
+                "/api/ext/knowledge/settings",
+                json={"auto_distill": False},
+            )
+            restored = client.post(
+                f"/api/ext/knowledge/jobs/{self.job.id}/restore"
+            )
+            client.post(f"/api/ext/knowledge/jobs/{self.job.id}/trash")
+            deleted = client.delete(f"/api/ext/knowledge/jobs/{self.job.id}")
+            empty_trash = client.get("/api/ext/knowledge/trash")
+
+        self.assertEqual(200, moved.status_code)
+        self.assertEqual([], active.json()["jobs"])
+        self.assertEqual(self.job.id, trash.json()["jobs"][0]["id"])
+        self.assertEqual(7, trash.json()["retention_days"])
+        self.assertEqual(30, setting.json()["retention_days"])
+        self.assertFalse(workflow.json()["auto_distill"])
+        self.assertEqual("pending", restored.json()["job"]["status"])
+        self.assertEqual(204, deleted.status_code)
+        self.assertEqual([], empty_trash.json()["jobs"])
 
     def test_api_accepts_preview_and_requires_confirmation_before_write(self):
         from fastapi.testclient import TestClient

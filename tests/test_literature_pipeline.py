@@ -21,6 +21,23 @@ class LiteraturePipelineTests(unittest.TestCase):
         values.update(changes)
         return SubscriptionStore(root).create(**values)
 
+    def test_auto_distillation_setting_controls_skill_execution(self):
+        from extensions.subscriptions.pipeline import auto_distill_enabled
+
+        class Store:
+            def __init__(self, enabled):
+                self.enabled = enabled
+
+            def get_auto_distill_enabled(self):
+                return self.enabled
+
+        class Queue:
+            def __init__(self, enabled):
+                self.store = Store(enabled)
+
+        self.assertTrue(auto_distill_enabled(Queue(True)))
+        self.assertFalse(auto_distill_enabled(Queue(False)))
+
     def test_open_literature_flows_through_zotero_skill_and_review_gate(self):
         from extensions.processing.job_queue import QueueResult
         from extensions.processing.job_store import KnowledgeJob

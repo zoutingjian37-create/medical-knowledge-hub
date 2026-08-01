@@ -15,7 +15,7 @@ from routes_ext.subscriptions import router as subscriptions_router
 
 ROOT = Path(__file__).resolve().parent
 STATIC_ROOT = ROOT / "static"
-APP_VERSION = "1.1.0"
+APP_VERSION = "1.1.1"
 ACTIVE_PAGES = {
     "admin",
     "inbox",

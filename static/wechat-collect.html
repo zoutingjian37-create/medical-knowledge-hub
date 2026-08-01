@@ -73,7 +73,17 @@
       const data=await response.json();
       if(!response.ok) throw new Error(data.detail || "操作失败");
       if(data.links) result.textContent=data.links.length ? data.links.join("\n") : "没有发现公开文章候选";
-      else result.textContent=data.results.map(item=>`${item.status}: ${item.title || item.job_id || item.reason}`).join("\n") || "没有新文章需要提炼";
+      else {
+        const settings=await window.ContentHubAPI.get("/api/ext/knowledge/settings");
+        if(settings.auto_distill){
+          for(const item of data.results.filter(entry=>entry.queued && entry.job_id)){
+            result.textContent=`正在使用 Skill 提炼：${item.title || item.job_id}`;
+            await window.ContentHubAPI.post(`/api/ext/knowledge/jobs/${item.job_id}/compile`,{});
+            item.status="preview_ready";
+          }
+        }
+        result.textContent=data.results.map(item=>`${item.status}: ${item.title || item.job_id || item.reason}`).join("\n") || "没有新文章需要提炼";
+      }
     }catch(error){ result.textContent="未完成："+error.message; }
     finally{ buttons.forEach(button=>button.disabled=false); }
   }

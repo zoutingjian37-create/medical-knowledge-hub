@@ -12,6 +12,12 @@ from .discovery import LiteratureItem
 from .runs import LiteratureRunStore
 
 
+def auto_distill_enabled(queue) -> bool:
+    store = getattr(queue, "store", None)
+    getter = getattr(store, "get_auto_distill_enabled", None)
+    return bool(getter()) if callable(getter) else True
+
+
 class LiteraturePipeline:
     def __init__(
         self,
@@ -81,7 +87,7 @@ class LiteraturePipeline:
                 self.seen.add(item)
                 if queue_result.queued and queue_result.job:
                     queued += 1
-                    if self.compiler is not None:
+                    if self.compiler is not None and auto_distill_enabled(self.queue):
                         self.run_store.update(
                             run.id,
                             status="distilling",
@@ -147,7 +153,7 @@ class LiteraturePipeline:
             self.seen.add(item)
             if queue_result.queued and queue_result.job:
                 queued += 1
-                if self.compiler is not None:
+                if self.compiler is not None and auto_distill_enabled(self.queue):
                     self.run_store.update(run.id, status="distilling")
                     await asyncio.to_thread(self.compiler.run_codex, queue_result.job.id)
             path.unlink(missing_ok=True)

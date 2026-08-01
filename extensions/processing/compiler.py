@@ -5,7 +5,7 @@ import re
 import shutil
 import subprocess
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from .job_store import KnowledgeJob, KnowledgeJobStore
@@ -232,19 +232,62 @@ class KnowledgeCompiler:
         )
         return ApprovalResult(card_path, tuple(updated_pages))
 
-    def reject(self, job_id: str) -> KnowledgeJob:
+    def trash(self, job_id: str) -> KnowledgeJob:
         job = self.store.get(job_id)
-        if job.cache_path:
-            Path(job.cache_path).unlink(missing_ok=True)
-        if job.preview_path:
-            Path(job.preview_path).unlink(missing_ok=True)
-        (self.handoffs_root / f"{job.id}.md").unlink(missing_ok=True)
+        if job.status in {"rejected", "trashed"}:
+            return job
         return self.store.update(
             job_id,
-            status="rejected",
-            cache_path="",
-            preview_path="",
+            status="trashed",
+            deleted_at=datetime.now(timezone.utc).isoformat(),
+            status_before_trash=job.status,
         )
+
+    def reject(self, job_id: str) -> KnowledgeJob:
+        """Compatibility alias for clients that still use the old endpoint."""
+        return self.trash(job_id)
+
+    def restore(self, job_id: str) -> KnowledgeJob:
+        job = self.store.get(job_id)
+        if job.status not in {"rejected", "trashed"}:
+            raise PreviewValidationError("job is not in the recycle bin")
+        target = job.status_before_trash or "needs_reparse"
+        if target == "preview_ready" and (
+            not job.preview_path or not Path(job.preview_path).exists()
+        ):
+            target = "needs_reparse"
+        if target in {"pending", "failed", "handoff_ready"} and (
+            not job.cache_path or not Path(job.cache_path).exists()
+        ):
+            target = "needs_reparse"
+        return self.store.update(
+            job_id,
+            status=target,
+            deleted_at="",
+            status_before_trash="",
+        )
+
+    def delete_permanently(self, job_id: str) -> None:
+        job = self.store.get(job_id)
+        if job.status not in {"rejected", "trashed"}:
+            raise PreviewValidationError("move the job to the recycle bin first")
+        self.cache.delete(job.id)
+        (self.previews_root / f"{job.id}.md").unlink(missing_ok=True)
+        (self.handoffs_root / f"{job.id}.md").unlink(missing_ok=True)
+        self.store.delete_metadata(job.id)
+
+    def purge_expired_trash(
+        self, now: datetime | None = None
+    ) -> tuple[str, ...]:
+        current = now or datetime.now(timezone.utc)
+        cutoff = current - timedelta(days=self.store.get_trash_retention_days())
+        purged = []
+        for job in self.store.list_trash():
+            deleted_at = datetime.fromisoformat(job.deleted_at or job.updated_at)
+            if deleted_at <= cutoff:
+                self.delete_permanently(job.id)
+                purged.append(job.id)
+        return tuple(purged)
 
 def _validate_preview(
     job: KnowledgeJob,

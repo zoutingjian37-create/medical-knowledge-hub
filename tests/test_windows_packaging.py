@@ -95,8 +95,13 @@ class WindowsPackagingTests(unittest.TestCase):
 
     def test_application_reports_the_release_version(self):
         app_source = (ROOT / "app.py").read_text("utf-8")
-        self.assertIn('APP_VERSION = "1.1.0"', app_source)
+        self.assertIn('APP_VERSION = "1.1.1"', app_source)
         self.assertIn("version=APP_VERSION", app_source)
+
+    def test_daily_worker_purges_expired_recycle_bin_items(self):
+        worker = (ROOT / "extensions/subscriptions/worker.py").read_text("utf-8")
+
+        self.assertIn("purge_expired_trash", worker)
 
 
 if __name__ == "__main__":

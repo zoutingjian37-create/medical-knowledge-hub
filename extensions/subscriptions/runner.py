@@ -2,6 +2,8 @@
 
 from dataclasses import replace
 
+from .pipeline import auto_distill_enabled
+
 
 class SubscriptionRunner:
     def __init__(self, *, store, literature_pipeline, wechat_pipeline=None):
@@ -79,9 +81,10 @@ class WeChatSubscriptionPipeline:
                 if result.queued and result.job:
                     queued += 1
                     self.run_store.update(run.id, status="distilling")
-                    import asyncio
+                    if auto_distill_enabled(self.queue):
+                        import asyncio
 
-                    await asyncio.to_thread(self.compiler.run_codex, result.job.id)
+                        await asyncio.to_thread(self.compiler.run_codex, result.job.id)
             return self.run_store.update(
                 run.id,
                 status="waiting_confirmation" if queued else "completed",

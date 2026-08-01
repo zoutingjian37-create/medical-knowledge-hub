@@ -4,7 +4,7 @@ import asyncio
 import os
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Response
 from pydantic import BaseModel, Field
 
 from extensions.processing.compiler import (
@@ -23,10 +23,47 @@ class PreviewRequest(BaseModel):
     wiki_updates: list[str] = Field(default_factory=list, max_length=50)
 
 
+class TrashSettingsRequest(BaseModel):
+    retention_days: int = Field(ge=1, le=30)
+
+
+class KnowledgeSettingsRequest(BaseModel):
+    auto_distill: bool
+
+
 @router.get("/knowledge/jobs", summary="List local knowledge jobs")
 async def list_knowledge_jobs(status: str | None = Query(default=None)):
-    jobs = KnowledgeJobStore().list(status=status)
+    compiler = KnowledgeCompiler()
+    compiler.purge_expired_trash()
+    jobs = compiler.store.list(status=status)
     return {"jobs": [_public_job(job) for job in jobs]}
+
+
+@router.get("/knowledge/trash", summary="List jobs in the local recycle bin")
+async def list_knowledge_trash():
+    compiler = KnowledgeCompiler()
+    compiler.purge_expired_trash()
+    return {
+        "jobs": [_public_job(job) for job in compiler.store.list_trash()],
+        "retention_days": compiler.store.get_trash_retention_days(),
+    }
+
+
+@router.put("/knowledge/trash/settings", summary="Set recycle bin retention")
+async def update_trash_settings(request: TrashSettingsRequest):
+    retention = KnowledgeJobStore().set_trash_retention_days(request.retention_days)
+    return {"retention_days": retention}
+
+
+@router.get("/knowledge/settings", summary="Read local knowledge workflow settings")
+async def read_knowledge_settings():
+    return {"auto_distill": KnowledgeJobStore().get_auto_distill_enabled()}
+
+
+@router.put("/knowledge/settings", summary="Update local knowledge workflow settings")
+async def update_knowledge_settings(request: KnowledgeSettingsRequest):
+    enabled = KnowledgeJobStore().set_auto_distill_enabled(request.auto_distill)
+    return {"auto_distill": enabled}
 
 
 @router.get(
@@ -141,15 +178,59 @@ async def approve_preview(job_id: str):
 
 @router.post(
     "/knowledge/jobs/{job_id}/reject",
-    summary="Reject a preview and delete its temporary source",
+    summary="Compatibility alias for moving a job to the recycle bin",
 )
 async def reject_preview(job_id: str):
     compiler = KnowledgeCompiler()
     try:
-        job = compiler.reject(job_id)
+        job = compiler.trash(job_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return {"job": _public_job(job)}
+
+
+@router.post(
+    "/knowledge/jobs/{job_id}/trash",
+    summary="Move a job to the local recycle bin",
+)
+async def trash_job(job_id: str):
+    compiler = KnowledgeCompiler()
+    try:
+        job = compiler.trash(job_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return {"job": _public_job(job)}
+
+
+@router.post(
+    "/knowledge/jobs/{job_id}/restore",
+    summary="Restore a job from the local recycle bin",
+)
+async def restore_job(job_id: str):
+    compiler = KnowledgeCompiler()
+    try:
+        job = compiler.restore(job_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except PreviewValidationError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return {"job": _public_job(job)}
+
+
+@router.delete(
+    "/knowledge/jobs/{job_id}",
+    status_code=204,
+    summary="Permanently delete one local recycled job",
+)
+async def permanently_delete_job(job_id: str):
+    compiler = KnowledgeCompiler()
+    try:
+        compiler.delete_permanently(job_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except PreviewValidationError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return Response(status_code=204)
 
 
 def _public_job(job: KnowledgeJob) -> dict:
@@ -163,6 +244,7 @@ def _public_job(job: KnowledgeJob) -> dict:
         "platform": job.platform,
         "created_at": job.created_at,
         "updated_at": job.updated_at,
+        "deleted_at": job.deleted_at or (job.updated_at if job.status == "rejected" else ""),
         "wiki_updates": list(job.wiki_updates),
         "error": job.error,
     }

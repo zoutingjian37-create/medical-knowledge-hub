@@ -5,6 +5,8 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+from extensions.processing.compiler import KnowledgeCompiler
+
 from .automation import AutomationService
 from .factory import build_subscription_runner
 from .store import SubscriptionStore
@@ -12,6 +14,7 @@ from .store import SubscriptionStore
 
 def main() -> int:
     load_dotenv(Path(__file__).resolve().parents[2] / ".env", override=False)
+    KnowledgeCompiler().purge_expired_trash()
     store = SubscriptionStore()
     service = AutomationService(store=store, runner=build_subscription_runner())
     asyncio.run(service.run_if_due())

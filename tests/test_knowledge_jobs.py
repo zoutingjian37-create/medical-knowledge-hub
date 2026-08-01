@@ -2,6 +2,7 @@ import json
 import os
 import tempfile
 import time
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import unittest
 
@@ -113,6 +114,50 @@ class KnowledgeJobLifecycleTests(unittest.TestCase):
         self.assertEqual(first.job.id, reparsed.job.id)
         self.assertEqual("pending", reparsed.job.status)
         self.assertTrue(Path(reparsed.job.cache_path).exists())
+
+    def test_trash_retention_defaults_to_seven_days_and_accepts_one_to_thirty(self):
+        from extensions.processing.job_store import KnowledgeJobStore
+
+        store = KnowledgeJobStore(self.state_root)
+
+        self.assertEqual(7, store.get_trash_retention_days())
+        self.assertEqual(30, store.set_trash_retention_days(30))
+        self.assertEqual(30, store.get_trash_retention_days())
+        with self.assertRaises(ValueError):
+            store.set_trash_retention_days(0)
+        with self.assertRaises(ValueError):
+            store.set_trash_retention_days(31)
+
+    def test_skill_distillation_is_the_default_and_can_be_disabled(self):
+        from extensions.processing.job_store import KnowledgeJobStore
+
+        store = KnowledgeJobStore(self.state_root)
+
+        self.assertTrue(store.get_auto_distill_enabled())
+        self.assertFalse(store.set_auto_distill_enabled(False))
+        self.assertFalse(store.get_auto_distill_enabled())
+        self.assertTrue(store.set_auto_distill_enabled(True))
+
+    def test_expired_trash_is_permanently_deleted_after_retention_period(self):
+        from extensions.processing.compiler import KnowledgeCompiler
+        from extensions.processing.job_store import KnowledgeJobStore
+        from extensions.processing.source_cache import SourceCache
+
+        cache = SourceCache(self.cache_root)
+        store = KnowledgeJobStore(self.state_root)
+        document = self._document()
+        job = store.create(document, cache.put("trash-job", document.markdown), job_id="trash-job")
+        compiler = KnowledgeCompiler(store=store, cache=cache)
+        compiler.trash(job.id)
+        deleted_at = (datetime.now(timezone.utc) - timedelta(days=8)).isoformat()
+        store.update(job.id, deleted_at=deleted_at)
+
+        purged = compiler.purge_expired_trash()
+
+        self.assertEqual((job.id,), purged)
+        self.assertFalse(Path(job.cache_path).exists())
+        with self.assertRaises(KeyError):
+            store.get(job.id)
 
 
 if __name__ == "__main__":

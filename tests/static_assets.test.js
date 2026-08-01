@@ -161,6 +161,8 @@ test("subscription center exposes daily controls and personal source management"
 
 test("review page exposes the complete review-gated workflow", () => {
     const html = fs.readFileSync(path.join(__dirname, "..", "static", "review.html"), "utf8");
+    const inbox = fs.readFileSync(path.join(__dirname, "..", "static", "inbox.html"), "utf8");
+    const wechatCollect = fs.readFileSync(path.join(__dirname, "..", "static", "wechat-collect.html"), "utf8");
 
     assert.match(html, /\/api\/ext\/knowledge\/jobs/);
     assert.match(html, /\/api\/ext\/platforms\/queue/);
@@ -168,7 +170,19 @@ test("review page exposes the complete review-gated workflow", () => {
     assert.match(html, /\/compile/);
     assert.match(html, /\/import-preview/);
     assert.match(html, /\/approve/);
-    assert.match(html, /\/reject/);
+    assert.match(html, /\/trash/);
+    assert.match(html, /回收站/);
+    assert.match(html, /恢复/);
+    assert.match(html, /永久删除/);
+    assert.match(html, /retention_days/);
+    assert.match(html, /默认用 Skill 提炼/);
+    assert.match(html, /\/api\/ext\/knowledge\/settings/);
+    assert.match(inbox, /\/api\/ext\/knowledge\/settings/);
+    assert.match(wechatCollect, /\/api\/ext\/knowledge\/settings/);
+    assert.match(wechatCollect, /\/compile/);
+    assert.match(html, /id="savePreview"/);
+    assert.match(html, /确认保存到 Obsidian/);
+    assert.match(html, /savePreview\.addEventListener/);
     assert.match(html, /确认保存/);
     assert.match(html, /自动提取重点/);
     assert.doesNotMatch(html, /cache_path|wechat_cookie|wechat_token/i);

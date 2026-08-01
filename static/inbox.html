@@ -75,11 +75,19 @@
             title.textContent = response.title || "内容已解析";
             meta.textContent = (platformNames[response.platform] || response.platform) + " · " + (response.author || "未识别作者");
             if (["pending", "failed", "handoff_ready"].includes(response.status)) {
-                preview.textContent = "链接已读取，正在提取重点，通常需要一至数分钟。请保持本页打开。";
-                await window.ContentHubAPI.post(
-                    "/api/ext/knowledge/jobs/" + response.job_id + "/compile",
-                    {}
-                );
+                var settings = await window.ContentHubAPI.get("/api/ext/knowledge/settings");
+                if (settings.auto_distill) {
+                    preview.textContent = "链接已读取，正在使用 Skill 提取重点，通常需要一至数分钟。请保持本页打开。";
+                    await window.ContentHubAPI.post(
+                        "/api/ext/knowledge/jobs/" + response.job_id + "/compile",
+                        {}
+                    );
+                } else {
+                    title.textContent = "已加入待处理";
+                    preview.textContent = "默认 Skill 提炼已关闭。你可以在“查看与保存”中手动提炼这篇内容。";
+                    reviewLink.hidden = false;
+                    return;
+                }
             }
             title.textContent = "预览已生成";
             preview.textContent = "内容还没有保存到 Obsidian。请先查看预览，再确认保存。";
