@@ -17,10 +17,10 @@
     </header>
 
     <div class="subscription-layout">
-        <section class="subscription-section subscription-section--main" aria-labelledby="literature-form-title">
+        <section class="subscription-section subscription-section--main" aria-labelledby="subscriptionFormTitle">
             <header class="subscription-section__header">
                 <div>
-                    <h2 id="literature-form-title">建立文献订阅</h2>
+                    <h2 id="subscriptionFormTitle">建立文献订阅</h2>
                     <p>先选择发现来源，只填写当前方式需要的信息。自动发现、入 Zotero 与后续讲解彼此独立。</p>
                 </div>
             </header>
@@ -45,7 +45,10 @@
                 </details>
                 <label class="field-label">每日上限<input id="dailyLimit" type="number" min="1" max="100" value="5"></label>
                 <label class="field-label">Zotero 目录<input id="collection" placeholder="默认使用订阅名称"></label>
-                <button class="primary wide" type="submit">保存文献订阅</button>
+                <div class="editor-actions wide">
+                    <button id="submitLiterature" class="primary" type="submit">保存文献订阅</button>
+                    <button id="cancelLiteratureEdit" class="secondary" type="button" hidden>取消修改</button>
+                </div>
                 <span id="formStatus" class="status-line wide" role="status" aria-live="polite"></span>
             </form>
 
@@ -73,10 +76,30 @@
                 <span id="automationStatus" class="status-line" role="status" aria-live="polite"></span>
                 <div id="zotero" class="integration-status">正在检查 Zotero</div>
             </div>
-            <div class="run-section">
-                <h2>文献运行记录</h2>
-                <div id="literatureRuns" class="run-list" aria-live="polite"><p class="empty-state">正在读取运行记录</p></div>
-            </div>
+            <section class="run-section" aria-labelledby="literature-run-title">
+                <div class="run-section__heading">
+                    <div>
+                        <h2 id="literature-run-title">文献运行记录</h2>
+                        <p>已完成记录自动保留 14 天。失败、等待学校登录和待确认记录可由你选择处理。</p>
+                    </div>
+                    <span id="literatureRunSummary" class="run-summary" role="status" aria-live="polite"></span>
+                </div>
+                <div class="run-toolbar" aria-label="文献运行记录工具栏">
+                    <label class="run-select-all"><input id="selectAllLiteratureRuns" type="checkbox"> 全选当前</label>
+                    <select id="literatureRunFilter" aria-label="筛选文献运行记录">
+                        <option value="all">全部记录</option>
+                        <option value="attention">需处理</option>
+                        <option value="completed">已完成</option>
+                    </select>
+                </div>
+                <div class="run-bulk-actions" aria-label="文献运行记录批量操作">
+                    <button id="retrySelectedLiteratureRuns" class="secondary" type="button" disabled>重试失败任务</button>
+                    <button id="openSelectedLiteratureReview" class="secondary" type="button" disabled>查看待确认</button>
+                    <button id="deleteSelectedLiteratureRuns" class="run-delete" type="button" disabled>删除记录</button>
+                </div>
+                <div id="literatureRuns" class="run-list" tabindex="0" aria-label="可滚动的文献运行记录" aria-live="polite"><p class="empty-state">正在读取运行记录</p></div>
+                <button id="showMoreLiteratureRuns" class="text-action run-more" type="button" hidden>显示更多记录</button>
+            </section>
         </aside>
     </div>
 </main>
@@ -89,6 +112,9 @@
     const list = document.getElementById("literatureList");
     const runsContainer = document.getElementById("literatureRuns");
     const literatureForm = document.getElementById("literatureForm");
+    const subscriptionFormTitle = document.getElementById("subscriptionFormTitle");
+    const submitLiterature = document.getElementById("submitLiterature");
+    const cancelLiteratureEdit = document.getElementById("cancelLiteratureEdit");
     const kindInput = document.getElementById("kind");
     const nameInput = document.getElementById("name");
     const sourceInput = document.getElementById("source");
@@ -112,6 +138,13 @@
     const automationStatus = document.getElementById("automationStatus");
     const zotero = document.getElementById("zotero");
     const runLiterature = document.getElementById("runLiterature");
+    const selectAllRuns = document.getElementById("selectAllLiteratureRuns");
+    const runFilter = document.getElementById("literatureRunFilter");
+    const retrySelectedRuns = document.getElementById("retrySelectedLiteratureRuns");
+    const openSelectedReview = document.getElementById("openSelectedLiteratureReview");
+    const deleteSelectedRuns = document.getElementById("deleteSelectedLiteratureRuns");
+    const showMoreRuns = document.getElementById("showMoreLiteratureRuns");
+    const runSummary = document.getElementById("literatureRunSummary");
     const kindLabels = { journal: "目标期刊", feed: "RSS / Atom", literature_query: "文献检索" };
     const statusLabels = {
         discovering: "正在发现",
@@ -124,6 +157,10 @@
         failed: "失败"
     };
     let subscriptions = [];
+    let runHistory = [];
+    let editingSubscriptionId = null;
+    let selectedRunIds = new Set();
+    let runVisibleLimit = 10;
     const modeCopy = {
         feed: {
             description: "从公开 RSS 或 Atom 发现新文献。适合期刊、学会或专题网站。",
@@ -166,28 +203,108 @@
         return span.innerHTML;
     }
 
+    function resetSubscriptionEditor(message = "") {
+        editingSubscriptionId = null;
+        literatureForm.reset();
+        kindInput.disabled = false;
+        dailyLimitInput.value = 5;
+        requirementField.open = false;
+        subscriptionFormTitle.textContent = "建立文献订阅";
+        submitLiterature.textContent = "保存文献订阅";
+        cancelLiteratureEdit.hidden = true;
+        formStatus.textContent = message;
+        updateSubscriptionMode();
+    }
+
+    function startSubscriptionEdit(item) {
+        editingSubscriptionId = item.id;
+        kindInput.value = item.kind;
+        kindInput.disabled = true;
+        nameInput.value = item.name || "";
+        sourceInput.value = item.source || "";
+        queryInput.value = item.query || "";
+        keywordsInput.value = (item.keywords || []).join(", ");
+        requirementInput.value = item.requirement || "";
+        dailyLimitInput.value = item.daily_limit || 5;
+        collectionInput.value = item.zotero_collection || "";
+        requirementField.open = Boolean(item.requirement);
+        subscriptionFormTitle.textContent = "修改文献订阅";
+        submitLiterature.textContent = "保存修改";
+        cancelLiteratureEdit.hidden = false;
+        formStatus.textContent = "订阅方式保持不变。可修改名称、来源、检索条件、上限和 Zotero 目录。";
+        updateSubscriptionMode();
+        literatureForm.scrollIntoView({ block: "start", behavior: "smooth" });
+        nameInput.focus();
+    }
+
     function renderSubscriptions() {
         list.innerHTML = subscriptions.map(item => `
             <div class="subscription-item">
                 <span class="subscription-item__copy"><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(kindLabels[item.kind] || item.kind)}，每日最多 ${item.daily_limit} 篇${item.enabled ? "" : "，已暂停"}</small></span>
                 <span class="subscription-actions">
                     <button class="secondary" type="button" onclick="runOne('${item.id}')">立即运行</button>
+                    <button class="secondary" type="button" onclick="editOne('${item.id}')">修改</button>
                     <button class="secondary" type="button" onclick="toggleOne('${item.id}', ${!item.enabled})">${item.enabled ? "暂停" : "恢复"}</button>
                     <button class="danger" type="button" onclick="removeOne('${item.id}')">删除</button>
                 </span>
             </div>`).join("") || '<p class="empty-state">还没有文献订阅。请先填写上面的表单。</p>';
     }
 
+    function matchesRunFilter(run) {
+        if (runFilter.value === "completed") return run.status === "completed";
+        if (runFilter.value === "attention") {
+            return ["failed", "waiting_school_login", "waiting_confirmation"].includes(run.status);
+        }
+        return true;
+    }
+
+    function runStatusClass(status) {
+        if (status === "completed") return "completed";
+        if (["failed", "waiting_school_login"].includes(status)) return "failed";
+        if (status === "waiting_confirmation") return "attention";
+        return "progress";
+    }
+
+    function updateRunControls(visible, total) {
+        const selected = visible.filter(run => selectedRunIds.has(run.id));
+        const failedSelected = selected.some(run => run.status === "failed");
+        const reviewSelected = selected.some(run => run.status === "waiting_confirmation");
+        selectAllRuns.checked = visible.length > 0 && selected.length === visible.length;
+        selectAllRuns.indeterminate = selected.length > 0 && selected.length < visible.length;
+        retrySelectedRuns.disabled = !failedSelected;
+        openSelectedReview.disabled = !reviewSelected;
+        deleteSelectedRuns.disabled = selectedRunIds.size === 0;
+        runSummary.textContent = total ? `显示 ${visible.length}/${total} 条，已选 ${selectedRunIds.size} 条` : "暂无记录";
+        showMoreRuns.hidden = visible.length >= total;
+    }
+
     function renderRuns(runs) {
-        const ids = new Set(subscriptions.map(item => item.id));
-        const relevant = runs.filter(run => ids.has(run.subscription_id)).slice(0, 8);
-        runsContainer.innerHTML = relevant.map(run => {
+        runHistory = runs;
+        const names = new Map(subscriptions.map(item => [item.id, item.name]));
+        const currentIds = new Set(runs.map(run => run.id));
+        selectedRunIds = new Set([...selectedRunIds].filter(id => currentIds.has(id)));
+        const relevant = runs.filter(matchesRunFilter);
+        const visible = relevant.slice(0, runVisibleLimit);
+        runsContainer.innerHTML = visible.map(run => {
+            const checked = selectedRunIds.has(run.id) ? " checked" : "";
+            const subscriptionName = names.get(run.subscription_id) || "已删除订阅";
             const login = run.status === "waiting_school_login"
                 ? `<p class="run-help">请先登录学校或出版社账号，再点击浏览器中的 Zotero Connector 保存 PDF。</p><div class="run-actions"><button class="secondary" type="button" onclick="openHandoff('${run.id}')">打开登录页面</button><button class="primary" type="button" onclick="continueLogin('${run.id}')">已用 Zotero Connector 保存 PDF，继续</button></div>`
                 : "";
             const error = run.error ? `<p class="run-error">${escapeHtml(run.error)}</p>` : "";
-            return `<div class="run-row"><strong>${escapeHtml(statusLabels[run.status] || run.status)}</strong><span>发现 ${run.discovered} 篇，入 Zotero ${run.saved_zotero} 篇，待确认 ${run.queued} 篇</span>${error}${login}</div>`;
-        }).join("") || '<p class="empty-state">还没有文献运行记录。</p>';
+            const review = run.status === "waiting_confirmation"
+                ? `<button class="secondary run-row__action" type="button" onclick="window.location.assign('/review.html')">查看待确认</button>`
+                : "";
+            return `<article class="run-row${selectedRunIds.has(run.id) ? " run-row--selected" : ""}">
+                <label class="run-row__select" aria-label="选择运行记录"><input type="checkbox" data-run-select="${escapeHtml(run.id)}"${checked}></label>
+                <div class="run-row__body">
+                    <div class="run-row__headline"><strong>${escapeHtml(subscriptionName)}</strong><span class="run-status run-status--${runStatusClass(run.status)}">${escapeHtml(statusLabels[run.status] || run.status)}</span></div>
+                    <span>发现 ${run.discovered} 篇，入 Zotero ${run.saved_zotero} 篇，待确认 ${run.queued} 篇</span>${error}${login}
+                </div>
+                <div class="run-row__actions">${review}</div>
+            </article>`;
+        }).join("") || '<p class="empty-state">当前筛选条件下还没有文献运行记录。</p>';
+        updateRunControls(visible, relevant.length);
     }
 
     async function load() {
@@ -211,38 +328,45 @@
 
     literatureForm.addEventListener("submit", async event => {
         event.preventDefault();
-        const submit = event.submitter;
-        submit.disabled = true;
+        submitLiterature.disabled = true;
         formStatus.textContent = "正在保存文献订阅";
+        const payload = {
+            name: nameInput.value,
+            source: sourceInput.value,
+            query: queryInput.value,
+            keywords: keywordsInput.value.split(",").map(value => value.trim()).filter(Boolean),
+            requirement: requirementInput.value,
+            daily_limit: Number(dailyLimitInput.value),
+            zotero_collection: collectionInput.value
+        };
         try {
-            await api.post("/api/ext/subscriptions", {
-                kind: kindInput.value,
-                name: nameInput.value,
-                source: sourceInput.value,
-                query: queryInput.value,
-                keywords: keywordsInput.value.split(",").map(value => value.trim()).filter(Boolean),
-                requirement: requirementInput.value,
-                daily_limit: Number(dailyLimitInput.value),
-                zotero_collection: collectionInput.value
-            });
-            event.currentTarget.reset();
-            dailyLimitInput.value = 5;
-            updateSubscriptionMode();
-            formStatus.textContent = "文献订阅已保存";
+            const id = editingSubscriptionId;
+            if (id) {
+                await api.patch(`/api/ext/subscriptions/${id}`, payload);
+                resetSubscriptionEditor("文献订阅已修改");
+            } else {
+                await api.post("/api/ext/subscriptions", { kind: kindInput.value, ...payload });
+                resetSubscriptionEditor("文献订阅已保存");
+            }
             await load();
         } catch (error) {
             formStatus.textContent = `保存失败：${error.message}`;
         } finally {
-            submit.disabled = false;
+            submitLiterature.disabled = false;
         }
     });
 
+    window.editOne = function (id) {
+        const item = subscriptions.find(subscription => subscription.id === id);
+        if (item) startSubscriptionEdit(item);
+    };
     window.toggleOne = async function (id, enabled) {
         await api.patch(`/api/ext/subscriptions/${id}`, { enabled });
         await load();
     };
     window.removeOne = async function (id) {
         await api.delete(`/api/ext/subscriptions/${id}`);
+        if (editingSubscriptionId === id) resetSubscriptionEditor("正在修改的订阅已删除");
         await load();
     };
     window.runOne = async function (id) {
@@ -260,6 +384,64 @@
             : "已检测到 Zotero PDF，正在继续处理。";
         await load();
     };
+
+    cancelLiteratureEdit.addEventListener("click", () => resetSubscriptionEditor("已取消修改"));
+
+    runsContainer.addEventListener("change", event => {
+        const id = event.target.dataset.runSelect;
+        if (!id) return;
+        if (event.target.checked) selectedRunIds.add(id);
+        else selectedRunIds.delete(id);
+        renderRuns(runHistory);
+    });
+    selectAllRuns.addEventListener("change", () => {
+        const visible = runHistory.filter(matchesRunFilter).slice(0, runVisibleLimit);
+        visible.forEach(run => {
+            if (selectAllRuns.checked) selectedRunIds.add(run.id);
+            else selectedRunIds.delete(run.id);
+        });
+        renderRuns(runHistory);
+    });
+    runFilter.addEventListener("change", () => {
+        selectedRunIds.clear();
+        runVisibleLimit = 10;
+        renderRuns(runHistory);
+    });
+    showMoreRuns.addEventListener("click", () => {
+        runVisibleLimit += 10;
+        renderRuns(runHistory);
+    });
+    retrySelectedRuns.addEventListener("click", async () => {
+        const runIds = runHistory.filter(run => selectedRunIds.has(run.id) && run.status === "failed").map(run => run.id);
+        if (!runIds.length) return;
+        retrySelectedRuns.disabled = true;
+        try {
+            await api.post("/api/ext/literature/runs/retry-selected", { run_ids: runIds });
+            selectedRunIds.clear();
+            formStatus.textContent = `已重试 ${runIds.length} 个失败任务`;
+            await load();
+        } catch (error) {
+            formStatus.textContent = `重试失败：${error.message}`;
+        }
+    });
+    openSelectedReview.addEventListener("click", () => {
+        if (runHistory.some(run => selectedRunIds.has(run.id) && run.status === "waiting_confirmation")) {
+            window.location.assign("/review.html");
+        }
+    });
+    deleteSelectedRuns.addEventListener("click", async () => {
+        const runIds = [...selectedRunIds];
+        if (!runIds.length || !window.confirm(`确定删除 ${runIds.length} 条运行记录吗？此操作不会删除 Zotero 或 Obsidian 中的内容。`)) return;
+        deleteSelectedRuns.disabled = true;
+        try {
+            await api.delete("/api/ext/literature/runs", { run_ids: runIds });
+            selectedRunIds.clear();
+            formStatus.textContent = "所选运行记录已删除";
+            await load();
+        } catch (error) {
+            formStatus.textContent = `删除失败：${error.message}`;
+        }
+    });
 
     saveAutomation.addEventListener("click", async () => {
         saveAutomation.disabled = true;

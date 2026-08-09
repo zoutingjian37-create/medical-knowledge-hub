@@ -225,6 +225,20 @@ class SubscriptionApiTests(unittest.TestCase):
             )
             self.assertFalse(paused.json()["subscription"]["enabled"])
 
+            updated = client.patch(
+                f"/api/ext/subscriptions/{identifier}",
+                json={
+                    "name": "更新后的示例期刊",
+                    "source": "https://example.org/updated.xml",
+                    "keywords": ["causal inference"],
+                    "daily_limit": 5,
+                    "zotero_collection": "更新后的目录",
+                },
+            )
+            self.assertEqual(200, updated.status_code)
+            self.assertEqual("更新后的示例期刊", updated.json()["subscription"]["name"])
+            self.assertEqual(5, updated.json()["subscription"]["daily_limit"])
+
             settings = client.put(
                 "/api/ext/automation",
                 json={"enabled": True, "run_time": "09:15", "daily_limit": 4},

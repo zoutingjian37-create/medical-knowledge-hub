@@ -255,6 +255,32 @@ test("literature subscription form progressively discloses source-specific field
     assert.match(literature, /仅在运行文献讲解 Skill 时生效/);
 });
 
+test("literature subscriptions can be edited and their run history uses the shared management controls", () => {
+    const literature = fs.readFileSync(
+        path.join(__dirname, "..", "static", "literature-subscriptions.html"),
+        "utf8",
+    );
+
+    for (const field of [
+        "subscriptionFormTitle",
+        "submitLiterature",
+        "cancelLiteratureEdit",
+        "selectAllLiteratureRuns",
+        "literatureRunFilter",
+        "retrySelectedLiteratureRuns",
+        "openSelectedLiteratureReview",
+        "deleteSelectedLiteratureRuns",
+    ]) {
+        assert.match(literature, new RegExp(`id="${field}"`));
+    }
+
+    assert.match(literature, /window\.editOne\s*=\s*function/);
+    assert.match(literature, /api\.patch\(`\/api\/ext\/subscriptions\/\$\{id\}`/);
+    assert.match(literature, /\/api\/ext\/literature\/runs\/retry-selected/);
+    assert.match(literature, /api\.delete\("\/api\/ext\/literature\/runs"/);
+    assert.match(literature, /runFilter\.addEventListener\("change"/);
+});
+
 test("review page exposes the complete review-gated workflow", () => {
     const html = fs.readFileSync(path.join(__dirname, "..", "static", "review.html"), "utf8");
     const trash = fs.readFileSync(path.join(__dirname, "..", "static", "trash.html"), "utf8");
