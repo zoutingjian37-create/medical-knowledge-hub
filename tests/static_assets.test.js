@@ -281,6 +281,26 @@ test("literature subscriptions can be edited and their run history uses the shar
     assert.match(literature, /runFilter\.addEventListener\("change"/);
 });
 
+test("literature subscriptions offer a multiline journal or RSS quick-add editor", () => {
+    const literature = fs.readFileSync(
+        path.join(__dirname, "..", "static", "literature-subscriptions.html"),
+        "utf8",
+    );
+
+    for (const field of [
+        "literatureSources",
+        "editLiteratureSources",
+        "saveLiteratureSources",
+        "literatureSourceLimit",
+        "literatureSourceStatus",
+        "advancedSubscriptionEditor",
+    ]) {
+        assert.match(literature, new RegExp(`id="${field}"`));
+    }
+    assert.match(literature, /每行一个期刊名称或 RSS 地址/);
+    assert.match(literature, /\/api\/ext\/subscriptions\/literature-sources/);
+});
+
 test("review page exposes the complete review-gated workflow", () => {
     const html = fs.readFileSync(path.join(__dirname, "..", "static", "review.html"), "utf8");
     const trash = fs.readFileSync(path.join(__dirname, "..", "static", "trash.html"), "utf8");

@@ -17,40 +17,59 @@
     </header>
 
     <div class="subscription-layout">
-        <section class="subscription-section subscription-section--main" aria-labelledby="subscriptionFormTitle">
+        <section class="subscription-section subscription-section--main" aria-labelledby="literatureSourcesTitle">
             <header class="subscription-section__header">
                 <div>
-                    <h2 id="subscriptionFormTitle">建立文献订阅</h2>
-                    <p>先选择发现来源，只填写当前方式需要的信息。自动发现、入 Zotero 与后续讲解彼此独立。</p>
+                    <h2 id="literatureSourcesTitle">期刊与 RSS 清单</h2>
+                    <p>常规订阅只需填写期刊名称或公开 RSS 地址；每行一项。复杂检索可在下方单独配置。</p>
                 </div>
             </header>
-            <form id="literatureForm" class="subscription-form subscription-section__body">
-                <label class="field-label">订阅方式
-                    <select id="kind">
-                        <option value="feed">RSS / Atom</option>
-                        <option value="journal">目标期刊</option>
-                        <option value="literature_query">文献检索</option>
-                    </select>
+            <div class="subscription-section__body">
+                <label class="field-label">期刊名称或 RSS 地址
+                    <textarea id="literatureSources" class="account-textarea" rows="8" readonly placeholder="例如：&#10;Clinical Chemistry&#10;https://example.org/journal/feed.xml"></textarea>
                 </label>
-                <label class="field-label">名称<input id="name" required placeholder="例如：目标期刊或研究主题"></label>
-                <p id="subscriptionModeHelp" class="subscription-mode-guide wide" role="status" aria-live="polite"></p>
-                <label id="sourceField" class="field-label wide"><span id="sourceLabel">RSS / Atom 地址</span><input id="source" placeholder="https://example.org/feed.xml"></label>
-                <p id="sourceHelp" class="field-help wide"></p>
-                <label id="queryField" class="field-label wide">PubMed / Europe PMC 查询<input id="query" placeholder="例如：target trial emulation"></label>
-                <label id="keywordsField" class="field-label wide">关键词（逗号分隔）<input id="keywords" placeholder="cardiovascular, causal inference"></label>
-                <details id="requirementField" class="skill-preference wide">
-                    <summary>文献讲解偏好（可选）</summary>
-                    <p>仅在运行文献讲解 Skill 时生效，不影响自动发现、下载或保存到 Zotero。</p>
-                    <label class="field-label">提炼要求<textarea id="requirement" rows="4" placeholder="例如：优先关注可迁移的统计方法、研究设计与创新点"></textarea></label>
-                </details>
-                <label class="field-label">每日上限<input id="dailyLimit" type="number" min="1" max="100" value="5"></label>
-                <label class="field-label">Zotero 目录<input id="collection" placeholder="默认使用订阅名称"></label>
-                <div class="editor-actions wide">
-                    <button id="submitLiterature" class="primary" type="submit">保存文献订阅</button>
-                    <button id="cancelLiteratureEdit" class="secondary" type="button" hidden>取消修改</button>
+                <p class="field-help">每行一个期刊名称或 RSS 地址。期刊名称通过公开文献元数据检索；RSS 地址直接读取公开条目。</p>
+                <label class="field-label">每项每日上限<input id="literatureSourceLimit" type="number" min="1" max="100" value="5" readonly></label>
+                <p class="field-help">保存时新增清单中的项目；已有订阅不会被重复添加。要改名称、地址或删除，请在下方对应条目操作。</p>
+                <div class="editor-actions">
+                    <button id="editLiteratureSources" class="secondary" type="button">修改</button>
+                    <button id="saveLiteratureSources" class="primary" type="button" disabled>保存</button>
+                    <span id="literatureSourceStatus" class="status-line" role="status" aria-live="polite">正在读取期刊与 RSS 清单</span>
                 </div>
-                <span id="formStatus" class="status-line wide" role="status" aria-live="polite"></span>
-            </form>
+
+                <details id="advancedSubscriptionEditor" class="skill-preference">
+                    <summary>逐条高级设置</summary>
+                    <p>用于文献检索、ISSN、单条讲解偏好或修改已保存项目的细节。</p>
+                    <form id="literatureForm" class="subscription-form">
+                        <h2 id="subscriptionFormTitle" class="wide">建立单条高级订阅</h2>
+                        <label class="field-label">订阅方式
+                            <select id="kind">
+                                <option value="feed">RSS / Atom</option>
+                                <option value="journal">目标期刊</option>
+                                <option value="literature_query">文献检索</option>
+                            </select>
+                        </label>
+                        <label class="field-label">名称<input id="name" required placeholder="例如：目标期刊或研究主题"></label>
+                        <p id="subscriptionModeHelp" class="subscription-mode-guide wide" role="status" aria-live="polite"></p>
+                        <label id="sourceField" class="field-label wide"><span id="sourceLabel">RSS / Atom 地址</span><input id="source" placeholder="https://example.org/feed.xml"></label>
+                        <p id="sourceHelp" class="field-help wide"></p>
+                        <label id="queryField" class="field-label wide">PubMed / Europe PMC 查询<input id="query" placeholder="例如：target trial emulation"></label>
+                        <label id="keywordsField" class="field-label wide">关键词（逗号分隔）<input id="keywords" placeholder="cardiovascular, causal inference"></label>
+                        <details id="requirementField" class="skill-preference wide">
+                            <summary>文献讲解偏好（可选）</summary>
+                            <p>仅在运行文献讲解 Skill 时生效，不影响自动发现、下载或保存到 Zotero。</p>
+                            <label class="field-label">提炼要求<textarea id="requirement" rows="4" placeholder="例如：优先关注可迁移的统计方法、研究设计与创新点"></textarea></label>
+                        </details>
+                        <label class="field-label">每日上限<input id="dailyLimit" type="number" min="1" max="100" value="5"></label>
+                        <label class="field-label">Zotero 目录<input id="collection" placeholder="默认使用订阅名称"></label>
+                        <div class="editor-actions wide">
+                            <button id="submitLiterature" class="primary" type="submit">保存文献订阅</button>
+                            <button id="cancelLiteratureEdit" class="secondary" type="button" hidden>取消修改</button>
+                        </div>
+                        <span id="formStatus" class="status-line wide" role="status" aria-live="polite"></span>
+                    </form>
+                </details>
+            </div>
 
             <div class="saved-subscriptions">
                 <div class="saved-subscriptions__heading">
@@ -111,6 +130,12 @@
     const api = window.ContentHubAPI;
     const list = document.getElementById("literatureList");
     const runsContainer = document.getElementById("literatureRuns");
+    const literatureSources = document.getElementById("literatureSources");
+    const literatureSourceLimit = document.getElementById("literatureSourceLimit");
+    const editLiteratureSources = document.getElementById("editLiteratureSources");
+    const saveLiteratureSources = document.getElementById("saveLiteratureSources");
+    const literatureSourceStatus = document.getElementById("literatureSourceStatus");
+    const advancedSubscriptionEditor = document.getElementById("advancedSubscriptionEditor");
     const literatureForm = document.getElementById("literatureForm");
     const subscriptionFormTitle = document.getElementById("subscriptionFormTitle");
     const submitLiterature = document.getElementById("submitLiterature");
@@ -218,6 +243,7 @@
 
     function startSubscriptionEdit(item) {
         editingSubscriptionId = item.id;
+        advancedSubscriptionEditor.open = true;
         kindInput.value = item.kind;
         kindInput.disabled = true;
         nameInput.value = item.name || "";
@@ -235,6 +261,30 @@
         updateSubscriptionMode();
         literatureForm.scrollIntoView({ block: "start", behavior: "smooth" });
         nameInput.focus();
+    }
+
+    function sourceLine(item) {
+        return item.kind === "feed" ? item.source : item.name;
+    }
+
+    function renderSourceEditor() {
+        if (!literatureSources.readOnly) return;
+        const sources = subscriptions.filter(item => ["journal", "feed"].includes(item.kind));
+        literatureSources.value = sources.map(sourceLine).join("\n");
+        literatureSourceStatus.textContent = sources.length
+            ? `已保存 ${sources.length} 个期刊或 RSS 来源`
+            : "还没有期刊或 RSS 来源";
+    }
+
+    function setSourceEditorEditable(editable) {
+        literatureSources.readOnly = !editable;
+        literatureSourceLimit.readOnly = !editable;
+        editLiteratureSources.disabled = editable;
+        saveLiteratureSources.disabled = !editable;
+        if (editable) {
+            literatureSourceStatus.textContent = "每行一个。新增项目会自动去重；修改或删除已有项目请使用下方条目。";
+            literatureSources.focus();
+        }
     }
 
     function renderSubscriptions() {
@@ -319,6 +369,7 @@
             runTime.value = automationData.automation.run_time;
             globalLimit.value = automationData.automation.daily_limit;
             renderSubscriptions();
+            renderSourceEditor();
             renderRuns(runData.runs);
         } catch (error) {
             list.innerHTML = '<p class="error-state">文献订阅读取失败，请刷新页面重试。</p>';
@@ -386,6 +437,27 @@
     };
 
     cancelLiteratureEdit.addEventListener("click", () => resetSubscriptionEditor("已取消修改"));
+
+    editLiteratureSources.addEventListener("click", () => setSourceEditorEditable(true));
+    saveLiteratureSources.addEventListener("click", async () => {
+        saveLiteratureSources.disabled = true;
+        literatureSourceStatus.textContent = "正在保存期刊与 RSS 来源";
+        const sources = literatureSources.value.split(/\r?\n/).map(value => value.trim()).filter(Boolean);
+        try {
+            const result = await api.post("/api/ext/subscriptions/literature-sources", {
+                sources,
+                daily_limit: Number(literatureSourceLimit.value)
+            });
+            setSourceEditorEditable(false);
+            literatureSourceStatus.textContent = result.created
+                ? `已新增 ${result.created} 个期刊或 RSS 来源`
+                : "没有新增来源；重复项已跳过";
+            await load();
+        } catch (error) {
+            literatureSourceStatus.textContent = `保存失败：${error.message}`;
+            saveLiteratureSources.disabled = false;
+        }
+    });
 
     runsContainer.addEventListener("change", event => {
         const id = event.target.dataset.runSelect;

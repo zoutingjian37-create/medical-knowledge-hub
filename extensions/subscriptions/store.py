@@ -7,6 +7,7 @@ import unicodedata
 from dataclasses import replace
 from datetime import date, datetime, timezone
 from pathlib import Path
+from urllib.parse import urlsplit
 from uuid import uuid4
 
 from extensions.processing.job_store import DEFAULT_STATE_ROOT
@@ -154,6 +155,43 @@ class SubscriptionStore:
         self._write_subscriptions([*non_wechat, *synced])
         return tuple(synced)
 
+    def add_literature_sources(self, sources, daily_limit: int = 5) -> tuple[Subscription, ...]:
+        """Add a newline-style list of journal names or RSS addresses without replacing existing work."""
+
+        _validate_limit(daily_limit)
+        desired = _clean_literature_sources(sources)
+        subscriptions = self.list()
+        existing_keys = {
+            _literature_key(item)
+            for item in subscriptions
+            if item.kind in {"journal", "feed"}
+        }
+        now = _utc_now()
+        created = []
+        for kind, name, source, key in desired:
+            if key in existing_keys:
+                continue
+            created.append(
+                Subscription(
+                    id=uuid4().hex,
+                    kind=kind,
+                    name=name,
+                    source=source,
+                    query="",
+                    keywords=(),
+                    requirement="",
+                    enabled=True,
+                    daily_limit=daily_limit,
+                    zotero_collection=name,
+                    created_at=now,
+                    updated_at=now,
+                )
+            )
+            existing_keys.add(key)
+        if created:
+            self._write_subscriptions([*subscriptions, *created])
+        return tuple(created)
+
     def get_automation(self) -> AutomationSettings:
         payload = _read_json(self.automation_path, {})
         return AutomationSettings(**payload) if payload else AutomationSettings()
@@ -278,6 +316,43 @@ def _clean_account_names(values) -> tuple[str, ...]:
     if len(cleaned) > 100:
         raise ValueError("at most 100 WeChat accounts are supported")
     return tuple(cleaned)
+
+
+def _clean_literature_sources(values) -> tuple[tuple[str, str, str, str], ...]:
+    cleaned = []
+    seen = set()
+    for value in values:
+        raw = unicodedata.normalize("NFKC", str(value)).strip()
+        if not raw:
+            continue
+        if "\n" in raw or "\r" in raw:
+            raise ValueError("each journal or RSS address must be a single line")
+        if raw.startswith(("http://", "https://")):
+            if len(raw) > 2000:
+                raise ValueError("RSS address must be at most 2000 characters")
+            host = urlsplit(raw).netloc.lower().removeprefix("www.")
+            if not host:
+                raise ValueError("RSS address must include a host")
+            key = f"feed:{raw.casefold()}"
+            item = ("feed", host, raw, key)
+        else:
+            if len(raw) > 200:
+                raise ValueError("journal name must be at most 200 characters")
+            name = re.sub(r"\s+", " ", raw)
+            key = f"journal:{name.casefold()}"
+            item = ("journal", name, "", key)
+        if key not in seen:
+            seen.add(key)
+            cleaned.append(item)
+    if len(cleaned) > 100:
+        raise ValueError("at most 100 journals or RSS sources are supported")
+    return tuple(cleaned)
+
+
+def _literature_key(subscription: Subscription) -> str:
+    if subscription.kind == "feed":
+        return f"feed:{subscription.source.casefold()}"
+    return f"journal:{subscription.name.casefold()}"
 
 
 def _account_key(value: str) -> str:

@@ -44,6 +44,11 @@ class WeChatAccountsRequest(BaseModel):
     daily_limit: int = Field(default=5, ge=1, le=100)
 
 
+class LiteratureSourcesRequest(BaseModel):
+    sources: list[str] = Field(default_factory=list, max_length=100)
+    daily_limit: int = Field(default=5, ge=1, le=100)
+
+
 class AutomationRequest(BaseModel):
     enabled: bool | None = None
     run_time: str | None = Field(default=None, pattern=r"^\d{2}:\d{2}$")
@@ -106,6 +111,17 @@ async def replace_wechat_accounts(request: WeChatAccountsRequest):
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return {"subscriptions": [item.to_dict() for item in items]}
+
+
+@router.post("/subscriptions/literature-sources", summary="Add journal names or RSS sources")
+async def add_literature_sources(request: LiteratureSourcesRequest):
+    try:
+        items = SubscriptionStore().add_literature_sources(
+            request.sources, daily_limit=request.daily_limit
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {"created": len(items), "subscriptions": [item.to_dict() for item in items]}
 
 
 @router.get("/subscriptions/export", summary="Export personal subscription settings")

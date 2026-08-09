@@ -170,6 +170,47 @@ class SubscriptionApiTests(unittest.TestCase):
         self.assertEqual(saved.json(), listed.json())
         self.assertEqual([7, 7], [item["daily_limit"] for item in saved.json()["subscriptions"]])
 
+    def test_literature_source_list_adds_journals_and_rss_without_touching_existing_items(self):
+        from fastapi.testclient import TestClient
+        from app import app
+
+        with TemporaryDirectory() as directory, patch.dict(
+            os.environ, {"CONTENT_HUB_STATE_DIR": directory}
+        ), TestClient(app) as client:
+            query = client.post(
+                "/api/ext/subscriptions",
+                json={"kind": "literature_query", "name": "保留的检索", "query": "biomarker"},
+            )
+            self.assertEqual(201, query.status_code)
+
+            saved = client.post(
+                "/api/ext/subscriptions/literature-sources",
+                json={
+                    "sources": [
+                        "Clinical Chemistry",
+                        "https://example.org/clinical-chemistry.xml",
+                        "Clinical Chemistry",
+                    ],
+                    "daily_limit": 4,
+                },
+            )
+            self.assertEqual(200, saved.status_code)
+            first = saved.json()["subscriptions"]
+            self.assertEqual(["journal", "feed"], [item["kind"] for item in first])
+            self.assertEqual(4, first[0]["daily_limit"])
+
+            repeated = client.post(
+                "/api/ext/subscriptions/literature-sources",
+                json={"sources": ["https://example.org/clinical-chemistry.xml"], "daily_limit": 3},
+            )
+            self.assertEqual(200, repeated.status_code)
+            self.assertEqual(0, repeated.json()["created"])
+            all_items = client.get("/api/ext/subscriptions").json()["subscriptions"]
+            self.assertEqual(
+                ["literature_query", "journal", "feed"],
+                [item["kind"] for item in all_items],
+            )
+
     def test_imported_automation_is_synchronized_with_the_windows_task(self):
         from fastapi.testclient import TestClient
         from app import app
