@@ -5,39 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>平台状态 - Medical Knowledge Hub</title>
     <link rel="stylesheet" href="/static/css/app.css">
-    <style>
-        body { background:#f6f8fb; color:#172033; font-family:system-ui,"Microsoft YaHei",sans-serif; }
-        main { max-width:1080px; margin:0 auto; padding:32px 24px 64px; }
-        h1 { margin:0 0 8px; font-size:28px; }
-        .lead { color:#667085; margin:0 0 24px; line-height:1.6; }
-        .notice,.panel,.platform-card { background:#fff; border:1px solid #e7eaf0; border-radius:14px; }
-        .notice { padding:18px 20px; margin-bottom:22px; }
-        .notice a { color:#1677ff; font-weight:600; }
-        .platform-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; margin-bottom:24px; }
-        .platform-card { padding:20px; }
-        .platform-head { display:flex; align-items:center; justify-content:space-between; gap:12px; }
-        .platform-head h2 { margin:0; font-size:19px; }
-        .badge { border-radius:999px; padding:4px 10px; font-size:13px; background:#f2f4f7; color:#475467; }
-        .badge.ok { color:#067647; background:#ecfdf3; }
-        .badge.warn { color:#b54708; background:#fffaeb; }
-        .platform-card p { min-height:44px; color:#667085; }
-        button { border:0; border-radius:9px; padding:10px 15px; background:#1677ff; color:#fff; font-weight:600; cursor:pointer; }
-        button.secondary { background:#eef4ff; color:#175cd3; }
-        .panel { padding:22px; }
-        .panel h2 { margin:0 0 6px; }
-        .form-row { display:grid; grid-template-columns:180px 1fr auto; gap:10px; margin-top:18px; }
-        select,input { width:100%; box-sizing:border-box; border:1px solid #d0d5dd; border-radius:9px; padding:11px 12px; font:inherit; background:#fff; }
-        .result { margin-top:18px; padding:16px; border-radius:10px; background:#f8fafc; white-space:pre-wrap; display:none; }
-        .result.show { display:block; }
-        @media(max-width:760px){ .platform-grid,.form-row{grid-template-columns:1fr;} }
-    </style>
 </head>
 <body>
-<main>
-    <h1>平台状态</h1>
-    <p class="lead">查看五个平台现在能不能读取内容，也可以在下方测试一个公开链接。</p>
+<main class="page-shell platform-page">
+    <header class="workspace-header">
+        <div><h1>平台状态</h1><p>检查读取连接，并把任何公开链接直接送入“预览后归档”流程。</p></div>
+    </header>
 
-    <section class="notice">
+    <section class="workspace-note">
         知乎、B站、小红书和抖音需要安装
         <a href="https://chromewebstore.google.com/detail/opencli/ildkmabpimmkaediidaifkhjpohdnifk" target="_blank" rel="noopener noreferrer">OpenCLI 浏览器连接器</a>。
         微信链接解析不需要公众号后台扫码登录。
@@ -45,15 +20,23 @@
 
     <section id="platformGrid" class="platform-grid" aria-live="polite"></section>
 
-    <section class="panel">
-        <h2>测试链接</h2>
-        <p class="lead">只读取内容，不会点赞、评论或发布。</p>
-        <div class="form-row">
+    <section class="platform-test-panel">
+        <div class="platform-test-panel__body">
+        <h2>从公开链接创建预览</h2>
+        <p class="section-heading__copy">读取不产生点赞、评论或发布行为。内容会先进入本地待确认区。</p>
+        <div class="platform-test-form">
             <select id="platformSelect" aria-label="选择平台"></select>
             <input id="contentUrl" type="url" placeholder="粘贴公开内容链接">
-            <button id="fetchButton">读取内容</button>
+            <button id="fetchButton">读取并加入待确认</button>
         </div>
-        <div id="fetchResult" class="result"></div>
+        <div id="fetchResult" class="capture-result" aria-live="polite"></div>
+        <div id="fetchActions" class="capture-actions" hidden>
+            <button id="basicPreviewButton" class="secondary">生成基础 Markdown 预览</button>
+            <button id="distillButton">使用 Skill 凝练</button>
+            <a id="reviewLink" class="button" href="/review.html">查看预览并确认保存</a>
+        </div>
+        </div>
+        <ol class="capture-path" aria-label="归档流程"><li><strong>读取内容</strong>由对应平台适配器读取公开文本、字幕或说明。</li><li><strong>选择处理</strong>基础 Markdown 不调用 Codex；Skill 凝练按需运行。</li><li><strong>确认归档</strong>预览正确后，才会写入 Obsidian。</li></ol>
     </section>
 </main>
 <script src="/static/js/api-client.js"></script>
@@ -71,25 +54,25 @@
     };
 
     function setBadge(card,text,className){
-        var badge=card.querySelector(".badge");
+        var badge=card.querySelector(".platform-badge");
         badge.textContent=text;
-        badge.className="badge "+className;
+        badge.className="platform-badge "+className;
     }
     async function checkHealth(key,card){
         setBadge(card,"检查中","");
         try{
             var result=await window.ContentHubAPI.get("/api/ext/platforms/"+key+"/health");
-            setBadge(card,result.available?"可以使用":"等待连接",result.available?"ok":"warn");
+            setBadge(card,result.available?"可以使用":"等待连接",result.available?"is-ready":"is-warning");
             card.querySelector(".detail").textContent=result.detail||descriptions[key];
         }catch(error){
-            setBadge(card,"检查失败","warn");
+            setBadge(card,"检查失败","is-warning");
             card.querySelector(".detail").textContent=error.message;
         }
     }
     function renderPlatform(item){
         var card=document.createElement("article");
         card.className="platform-card";
-        card.innerHTML='<div class="platform-head"><h2></h2><span class="badge">已接入</span></div>'
+        card.innerHTML='<div class="platform-head"><h2></h2><span class="platform-badge">已接入</span></div>'
             +'<p class="detail"></p><button class="secondary">重新检查</button>';
         card.querySelector("h2").textContent=names[item.key]||item.display_name;
         card.querySelector(".detail").textContent=descriptions[item.key]||"统一内容采集";
@@ -109,18 +92,64 @@
             select.appendChild(option);
         });
     }
-    document.getElementById("fetchButton").addEventListener("click",async function(){
-        var key=document.getElementById("platformSelect").value;
-        var url=document.getElementById("contentUrl").value.trim();
-        var box=document.getElementById("fetchResult");
-        box.className="result show";
-        box.textContent="正在读取…";
+    var currentJobId="";
+    var fetchResult=document.getElementById("fetchResult");
+    var fetchActions=document.getElementById("fetchActions");
+    var reviewLink=document.getElementById("reviewLink");
+    var basicPreviewButton=document.getElementById("basicPreviewButton");
+    var distillButton=document.getElementById("distillButton");
+
+    function showResult(message, error){
+        fetchResult.className="capture-result show"+(error?" is-error":"");
+        fetchResult.textContent=message;
+    }
+    function prepareReviewLink(){ reviewLink.href="/review.html#"+currentJobId; }
+    async function prepareBasicPreview(){
+        if(!currentJobId)return;
+        basicPreviewButton.disabled=true; distillButton.disabled=true;
+        showResult("正在整理基础 Markdown，不会调用 Codex…");
         try{
-            var response=await window.ContentHubAPI.post("/api/ext/platforms/"+key+"/fetch",{url:url});
-            var content=response.content;
-            box.textContent="标题："+(content.title||"未命名")+"\n作者："+(content.creator_name||"未识别")
-                +"\n\n"+(content.body_text||"已读取，但正文为空。").slice(0,800);
-        }catch(error){ box.textContent="暂时无法读取："+error.message; }
+            await window.ContentHubAPI.post("/api/ext/knowledge/jobs/"+currentJobId+"/basic-preview",{});
+            showResult("基础 Markdown 预览已生成。请查看预览并确认保存，或在待确认页再使用 Skill 凝练。");
+        }catch(error){showResult(error.message,true);}
+        finally{basicPreviewButton.disabled=false;distillButton.disabled=false;}
+    }
+    async function distillCurrentJob(){
+        if(!currentJobId)return;
+        basicPreviewButton.disabled=true; distillButton.disabled=true;
+        showResult("正在使用 Skill 凝练，通常需要一至数分钟…");
+        try{
+            await window.ContentHubAPI.post("/api/ext/knowledge/jobs/"+currentJobId+"/compile",{});
+            showResult("凝练预览已生成。请查看预览并确认保存。");
+        }catch(error){showResult(error.message,true);}
+        finally{basicPreviewButton.disabled=false;distillButton.disabled=false;}
+    }
+    basicPreviewButton.addEventListener("click",prepareBasicPreview);
+    distillButton.addEventListener("click",distillCurrentJob);
+    document.getElementById("fetchButton").addEventListener("click",async function(){
+        var url=document.getElementById("contentUrl").value.trim();
+        if(!url)return;
+        fetchActions.hidden=true; currentJobId="";
+        showResult("正在读取公开内容…");
+        try{
+            var response=await window.ContentHubAPI.post("/api/ext/platforms/queue",{url:url});
+            currentJobId=response.job_id||"";
+            if(response.reason==="advertisement"){showResult("已过滤推广内容，未创建归档任务。");return;}
+            if(response.reason==="duplicate"){
+                showResult(response.status==="approved"?"该内容已保存到 Obsidian。":"该内容已经在待确认区。 ");
+                if(currentJobId){prepareReviewLink();fetchActions.hidden=false;}
+                return;
+            }
+            if(!currentJobId){showResult("读取完成，但没有生成可归档任务。",true);return;}
+            prepareReviewLink(); fetchActions.hidden=false;
+            if(response.status==="preview_ready"){
+                showResult("预览已生成。请查看预览并确认保存。");
+                basicPreviewButton.hidden=true; distillButton.hidden=true;
+            }else{
+                basicPreviewButton.hidden=false; distillButton.hidden=false;
+                showResult("内容已读取。请选择生成基础 Markdown，或使用 Skill 凝练后再确认归档。");
+            }
+        }catch(error){ showResult("暂时无法读取："+error.message,true); }
     });
     loadPlatforms().catch(function(error){
         document.getElementById("platformGrid").textContent="平台加载失败："+error.message;

@@ -1256,6 +1256,180 @@ body.subscription-surface .page-shell {
     cursor: pointer;
 }
 
+/* Public-link intake: extraction is visible before optional Skill work. */
+.link-capture-page,
+.platform-page {
+    max-width: 1040px;
+}
+
+.capture-panel,
+.platform-test-panel {
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    box-shadow: var(--shadow-panel);
+}
+
+.capture-panel__body,
+.platform-test-panel__body {
+    padding: 26px;
+}
+
+.capture-form {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+}
+
+.capture-form input,
+.platform-test-form input,
+.platform-test-form select {
+    min-height: 44px;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+    background: var(--surface);
+    color: var(--ink);
+}
+
+.capture-form button,
+.platform-test-form button,
+.capture-actions .button,
+.capture-actions button {
+    min-height: 44px;
+    border: 0;
+    padding: 10px 16px;
+    cursor: pointer;
+}
+
+.capture-path {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border-top: 1px solid var(--line);
+}
+
+.capture-path li {
+    min-height: 92px;
+    padding: 17px 20px;
+    color: var(--ink-soft);
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.capture-path li + li {
+    border-left: 1px solid var(--line);
+}
+
+.capture-path strong {
+    display: block;
+    margin-bottom: 4px;
+    color: var(--ink);
+    font-size: 13px;
+}
+
+.capture-result {
+    display: none;
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid var(--line);
+}
+
+.capture-result.show {
+    display: block;
+}
+
+.capture-result h2 {
+    margin: 0 0 6px;
+    color: var(--ink);
+    font-size: 18px;
+    line-height: 1.4;
+}
+
+.capture-result__meta,
+.capture-result__message {
+    color: var(--ink-soft);
+    font-size: 13px;
+    line-height: 1.65;
+}
+
+.capture-result__message {
+    margin: 14px 0 0;
+    padding: 13px 14px;
+    border-radius: var(--radius-sm);
+    background: var(--surface-muted);
+    white-space: pre-wrap;
+}
+
+.capture-result__message.is-error {
+    background: var(--surface-muted);
+    color: var(--danger);
+}
+
+.capture-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 14px;
+}
+
+.capture-actions .button {
+    display: inline-flex;
+    align-items: center;
+    text-decoration: none;
+}
+
+.platform-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.platform-card {
+    padding: 18px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+}
+
+.platform-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.platform-head h2 { margin: 0; font-size: 18px; }
+.platform-card p { min-height: 42px; margin: 9px 0 14px; color: var(--ink-soft); font-size: 13px; line-height: 1.55; }
+.platform-card button { min-height: 36px; border: 0; padding: 7px 11px; cursor: pointer; }
+.platform-badge { border-radius: 999px; padding: 4px 9px; background: var(--surface-muted); color: var(--ink-soft); font-size: 13px; }
+.platform-badge.is-ready { background: var(--accent-soft); color: var(--success); }
+.platform-badge.is-warning { background: var(--surface-muted); color: var(--ink-soft); }
+
+.platform-test-form {
+    display: grid;
+    grid-template-columns: 164px minmax(0, 1fr) auto;
+    gap: 10px;
+}
+
+@media (max-width: 680px) {
+    .capture-panel__body,
+    .platform-test-panel__body { padding: 20px 18px; }
+    .capture-form,
+    .platform-test-form,
+    .platform-grid,
+    .capture-path { grid-template-columns: 1fr; }
+    .capture-path li + li { border-top: 1px solid var(--line); border-left: 0; }
+    .capture-path li { min-height: 72px; }
+    .capture-form button,
+    .platform-test-form button { width: 100%; }
+}
+
 .review-page .message {
     min-height: 20px;
     margin-top: 10px;

@@ -184,6 +184,20 @@ class KnowledgeCompilerTests(unittest.TestCase):
         self.assertIn("$distill-medical-literature", handoff)
         self.assertNotIn("$distill-medical-wechat", handoff)
 
+    def test_platform_job_can_prepare_a_basic_markdown_preview_without_codex(self):
+        """A readable platform source can be reviewed and archived before Skill use."""
+
+        self.store.update(self.job.id, platform="zhihu")
+
+        preview = self._compiler().prepare_basic_preview(self.job.id)
+
+        self.assertEqual("preview_ready", preview.status)
+        markdown = Path(preview.preview_path).read_text("utf-8")
+        self.assertIn("source_stage: extracted", markdown)
+        self.assertIn("## 原始内容", markdown)
+        self.assertIn("这是只允许临时保存的清洗后正文", markdown)
+        self.assertIn("状态：等待用户确认", markdown)
+
     def test_literature_handoff_includes_known_publication_date(self):
         result = self._compiler().prepare_handoff(self.job.id)
 
@@ -666,6 +680,29 @@ class KnowledgeCompilerTests(unittest.TestCase):
         ):
             response = client.post(
                 f"/api/ext/knowledge/jobs/{self.job.id}/compile"
+            )
+
+        self.assertEqual(200, response.status_code)
+        self.assertEqual("preview_ready", response.json()["job"]["status"])
+
+    def test_api_can_prepare_basic_markdown_without_running_codex(self):
+        from fastapi.testclient import TestClient
+        from app import app
+
+        self.store.update(self.job.id, platform="xiaohongshu")
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "CONTENT_HUB_CACHE_DIR": str(self.cache.root),
+                    "CONTENT_HUB_STATE_DIR": str(self.store.root),
+                    "OBSIDIAN_VAULT_PATH": str(self.vault),
+                },
+            ),
+            TestClient(app) as client,
+        ):
+            response = client.post(
+                f"/api/ext/knowledge/jobs/{self.job.id}/basic-preview"
             )
 
         self.assertEqual(200, response.status_code)

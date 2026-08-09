@@ -95,8 +95,10 @@ test("manual inbox queues any supported public link for knowledge distillation",
     for (const platform of ["微信", "知乎", "B站", "小红书", "抖音"]) {
         assert.match(html, new RegExp(platform));
     }
-    assert.match(html, /提取并生成预览/);
+    assert.match(html, /读取公开链接/);
     assert.match(html, /\/compile/);
+    assert.match(html, /\/basic-preview/);
+    assert.match(html, /基础 Markdown 预览/);
     assert.match(html, /\/review\.html/);
     assert.match(html, /response\.reason === "advertisement"/);
     assert.match(html, /已过滤推广内容/);
@@ -112,6 +114,9 @@ test("platform page includes WeChat link parsing and OpenCLI", () => {
     assert.match(html, /微信公众号/);
     assert.match(html, /OpenCLI/);
     assert.match(html, /\/api\/ext\/platforms/);
+    assert.match(html, /\/api\/ext\/platforms\/queue/);
+    assert.match(html, /\/basic-preview/);
+    assert.match(html, /查看预览并确认保存/);
 });
 
 test("dashboard descriptions say what each module does in plain language", () => {
@@ -311,6 +316,7 @@ test("review page exposes the complete review-gated workflow", () => {
     assert.match(html, /\/api\/ext\/platforms\/queue/);
     assert.match(html, /\/handoff/);
     assert.match(html, /\/compile/);
+    assert.match(html, /\/basic-preview/);
     assert.match(html, /\/import-preview/);
     assert.match(html, /\/approve/);
     assert.match(html, /href="\/trash\.html"/);
@@ -340,7 +346,7 @@ test("review page exposes the complete review-gated workflow", () => {
     assert.match(trash, /\/api\/ext\/knowledge\/trash\/delete-selected/);
     assert.match(trash, /\/api\/ext\/knowledge\/trash\/restore-selected/);
     assert.doesNotMatch(trash, /onclick="(?:restoreJob|deleteJob)/);
-    assert.match(html, /文献自动讲解：开启/);
+    assert.match(html, /自动使用 Skill 凝练：开启/);
     assert.match(html, /\/api\/ext\/knowledge\/settings/);
     assert.match(inbox, /\/api\/ext\/knowledge\/settings/);
     assert.doesNotMatch(wechatCollect, /\/api\/ext\/knowledge\/settings/);
@@ -353,6 +359,7 @@ test("review page exposes the complete review-gated workflow", () => {
     assert.match(html, /确认保存到 Obsidian/);
     assert.match(html, /savePreview\.addEventListener/);
     assert.match(html, /确认保存/);
-    assert.match(html, /生成文献讲解/);
+    assert.match(html, /使用 Skill 凝练/);
+    assert.match(html, /使用 Skill 重新凝练/);
     assert.doesNotMatch(html, /cache_path|wechat_cookie|wechat_token/i);
 });
