@@ -219,6 +219,21 @@ async def compile_with_codex(job_id: str):
 
 
 @router.post(
+    "/knowledge/jobs/{job_id}/basic-preview",
+    summary="Generate a reviewable source Markdown preview without Codex",
+)
+async def prepare_basic_markdown_preview(job_id: str):
+    compiler = KnowledgeCompiler()
+    try:
+        job = compiler.prepare_basic_preview(job_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except (FileNotFoundError, PreviewValidationError) as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return {"job": _public_job(job)}
+
+
+@router.post(
     "/knowledge/jobs/{job_id}/preview",
     summary="Store a Codex-generated preview without changing Obsidian",
 )

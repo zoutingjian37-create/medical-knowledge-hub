@@ -99,6 +99,90 @@ wiki_updates: []
 """
 
 
+def _narrative_literature_preview(source_url=SOURCE_URL):
+    return f"""---
+source_url: \"{source_url}\"
+source_platform: journal
+source_account: \"示例医学期刊\"
+source_title: \"A study\"
+published_at: \"2026-03-01\"
+evidence_level: full_text_verified
+status: preview
+wiki_updates: []
+---
+
+# A study
+
+## 为什么值得看
+这项研究解决临床决策中的真实不确定性。
+
+## 研究问题
+明确人群、比较和目标结局。
+
+## 研究怎么做
+交代数据、时间顺序和关键变量。
+
+## 统计方法为什么这样选
+普通模型会忽略重复测量；混合模型更适配。
+
+```mermaid
+flowchart LR
+    A[入组] --> B[重复测量]
+    B --> C[结局]
+```
+
+## 主要发现
+给出方向、适用人群与不确定性。
+
+## 这篇研究的新意
+方法应用创新：把适配重复测量的模型用于该临床问题。
+
+## 对科研设计的启发
+将时间顺序和验证设计保留后再考虑迁移。
+
+## 局限与证据边界
+观察性证据不能单独证明因果。
+
+## 来源
+{source_url}
+
+状态：等待用户确认
+"""
+
+
+def _continuous_literature_preview(source_url=SOURCE_URL):
+    return f"""---
+source_url: "{source_url}"
+source_platform: journal
+source_account: "示例医学期刊"
+source_title: "A study"
+published_at: "2026-03-01"
+evidence_level: full_text_verified
+status: preview
+wiki_updates: []
+---
+
+# 一个自然讲解标题
+
+## 为什么原来的方法总会漏掉一部分人？
+研究问题从一个具体的数据缺口开始，顺势交代目标人群和结局。
+
+## 作者加了哪一步？
+这里连着说明研究设计、数据和方法，不另拆资料卡。
+
+## 效果到底怎么样？
+结果与关键图片放在一起解释，并保留会改变判断的数字。
+
+## 这个思路可以怎么用？
+说明文章的新意以及可迁移的科研设计启发。
+
+## 来源
+{source_url}
+
+状态：等待用户确认
+"""
+
+
 class KnowledgeCompilerTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
@@ -130,7 +214,7 @@ class KnowledgeCompilerTests(unittest.TestCase):
         return KnowledgeCompiler(store=self.store, cache=self.cache)
 
     def test_literature_skill_output_contract_matches_preview_validator(self):
-        from extensions.processing.compiler import LITERATURE_REQUIRED_SECTIONS
+        from extensions.processing.compiler import LITERATURE_NARRATIVE_TOPICS
 
         contract = (
             Path(__file__).parents[1]
@@ -140,8 +224,9 @@ class KnowledgeCompilerTests(unittest.TestCase):
             / "output-contract.md"
         ).read_text("utf-8")
 
-        for section in LITERATURE_REQUIRED_SECTIONS:
-            self.assertIn(f"## {section}", contract)
+        for topic, _ in LITERATURE_NARRATIVE_TOPICS:
+            self.assertIn(topic, contract)
+        self.assertIn("4–6 个自然小节", contract)
 
     def test_repository_skill_describes_the_installed_output_contract(self):
         skill = (
@@ -151,14 +236,32 @@ class KnowledgeCompilerTests(unittest.TestCase):
             / "SKILL.md"
         ).read_text("utf-8")
 
-        self.assertIn("临床问题与 PICO/PECO", skill)
-        self.assertIn("统计方法创新", skill)
-        self.assertIn("Wiki 更新建议", skill)
+        self.assertIn("为什么值得看", skill)
+        self.assertIn("统计方法为什么这样选", skill)
+        self.assertIn("对科研设计的启发", skill)
 
     def test_validator_accepts_preview_from_installed_literature_skill(self):
         accepted = self._compiler().accept_preview(
             self.job.id,
             _installed_literature_skill_preview(),
+            [],
+        )
+
+        self.assertEqual("preview_ready", accepted.status)
+
+    def test_validator_accepts_narrative_literature_explainer_with_method_diagram(self):
+        accepted = self._compiler().accept_preview(
+            self.job.id,
+            _narrative_literature_preview(),
+            [],
+        )
+
+        self.assertEqual("preview_ready", accepted.status)
+
+    def test_validator_accepts_continuous_literature_explainer_with_natural_headings(self):
+        accepted = self._compiler().accept_preview(
+            self.job.id,
+            _continuous_literature_preview(),
             [],
         )
 
@@ -183,6 +286,20 @@ class KnowledgeCompilerTests(unittest.TestCase):
         handoff = result.handoff_path.read_text("utf-8")
         self.assertIn("$distill-medical-literature", handoff)
         self.assertNotIn("$distill-medical-wechat", handoff)
+
+    def test_platform_job_can_prepare_a_basic_markdown_preview_without_codex(self):
+        """A readable platform source can be reviewed and archived before Skill use."""
+
+        self.store.update(self.job.id, platform="zhihu")
+
+        preview = self._compiler().prepare_basic_preview(self.job.id)
+
+        self.assertEqual("preview_ready", preview.status)
+        markdown = Path(preview.preview_path).read_text("utf-8")
+        self.assertIn("source_stage: extracted", markdown)
+        self.assertIn("## 原始内容", markdown)
+        self.assertIn("这是只允许临时保存的清洗后正文", markdown)
+        self.assertIn("状态：等待用户确认", markdown)
 
     def test_literature_handoff_includes_known_publication_date(self):
         result = self._compiler().prepare_handoff(self.job.id)
@@ -666,6 +783,29 @@ class KnowledgeCompilerTests(unittest.TestCase):
         ):
             response = client.post(
                 f"/api/ext/knowledge/jobs/{self.job.id}/compile"
+            )
+
+        self.assertEqual(200, response.status_code)
+        self.assertEqual("preview_ready", response.json()["job"]["status"])
+
+    def test_api_can_prepare_basic_markdown_without_running_codex(self):
+        from fastapi.testclient import TestClient
+        from app import app
+
+        self.store.update(self.job.id, platform="xiaohongshu")
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "CONTENT_HUB_CACHE_DIR": str(self.cache.root),
+                    "CONTENT_HUB_STATE_DIR": str(self.store.root),
+                    "OBSIDIAN_VAULT_PATH": str(self.vault),
+                },
+            ),
+            TestClient(app) as client,
+        ):
+            response = client.post(
+                f"/api/ext/knowledge/jobs/{self.job.id}/basic-preview"
             )
 
         self.assertEqual(200, response.status_code)

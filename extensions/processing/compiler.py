@@ -39,8 +39,26 @@ LITERATURE_REQUIRED_SECTIONS = (
     "局限与证据边界",
     "来源",
 )
-LEGACY_LITERATURE_REQUIRED_SECTIONS = LITERATURE_REQUIRED_SECTIONS
-LITERATURE_REQUIRED_SECTIONS = REQUIRED_SECTIONS
+LEGACY_LITERATURE_REQUIRED_SECTIONS = REQUIRED_SECTIONS
+LITERATURE_NARRATIVE_TOPICS = (
+    (
+        "研究问题",
+        re.compile(r"为什么|问题|难题|痛点|漏掉|看不见|值得看"),
+    ),
+    (
+        "研究设计与方法",
+        re.compile(r"怎么做|如何做|作者.*(?:做|加|改)|哪一步|研究设计|方法|流程"),
+    ),
+    (
+        "主要发现",
+        re.compile(r"结果|发现|效果|表现|提升|改变|怎么样"),
+    ),
+    (
+        "价值与迁移",
+        re.compile(r"新意|创新|价值|启发|借鉴|迁移|怎么用|意味着"),
+    ),
+    ("来源", re.compile(r"来源|原文|参考")),
+)
 RESERVED_WIKI_ROOTS = {"微信公众号", "证据卡", "系统"}
 
 
@@ -151,6 +169,50 @@ class KnowledgeCompiler:
         markdown = (
             frontmatter
             + cleaned_body
+            + f"\n\n## 来源\n\n[{job.title}]({job.source_url})\n\n"
+            + "状态：等待用户确认\n"
+        )
+        return self.accept_preview(job_id, markdown, [])
+
+    def prepare_basic_preview(self, job_id: str) -> KnowledgeJob:
+        """Make a reviewable source Markdown preview without invoking Codex.
+
+        This is deliberately an extraction record, not a summary.  It lets a
+        user archive readable public text directly, while keeping Skill-based
+        distillation an explicit second action.
+        """
+
+        job = self.store.get(job_id)
+        platform = str(job.platform).strip().casefold()
+        if platform == "wechat":
+            return self.prepare_clean_preview(job_id)
+        cache_path = Path(job.cache_path)
+        if not job.cache_path or not cache_path.exists():
+            self.store.update(job_id, status="needs_reparse", cache_path="")
+            raise FileNotFoundError("temporary article text expired; parse the link again")
+
+        body = _basic_source_body(cache_path.read_text("utf-8"), job.title)
+        if not body or re.sub(r"\s+", "", body) in {"-", "—", "无", "暂无简介"}:
+            raise PreviewValidationError(
+                "未读到足够正文：请先获得文章正文或视频字幕后再归档"
+            )
+        frontmatter = (
+            "---\n"
+            f"source_url: {json.dumps(job.source_url, ensure_ascii=False)}\n"
+            f"source_platform: {json.dumps(platform, ensure_ascii=False)}\n"
+            f"source_account: {json.dumps(job.author or '', ensure_ascii=False)}\n"
+            f"source_title: {json.dumps(job.title, ensure_ascii=False)}\n"
+            f"published_at: {json.dumps(job.published_at or '', ensure_ascii=False)}\n"
+            "source_stage: extracted\n"
+            "status: preview\n"
+            "wiki_updates: []\n"
+            "---\n\n"
+        )
+        markdown = (
+            frontmatter
+            + f"# {job.title}\n\n"
+            + "## 原始内容\n\n"
+            + body
             + f"\n\n## 来源\n\n[{job.title}]({job.source_url})\n\n"
             + "状态：等待用户确认\n"
         )
@@ -438,6 +500,21 @@ class KnowledgeCompiler:
             cleared.append(job.id)
         return tuple(cleared)
 
+def _has_continuous_literature_narrative(markdown: str) -> bool:
+    """Accept natural explainer headings when they still cover the full argument."""
+
+    headings = [
+        match.group(1).strip()
+        for match in re.finditer(r"^##\s+(.+?)\s*$", markdown, re.MULTILINE)
+    ]
+    if not 4 <= len(headings) <= 6:
+        return False
+    return all(
+        any(pattern.search(heading) for heading in headings)
+        for _, pattern in LITERATURE_NARRATIVE_TOPICS
+    )
+
+
 def _validate_preview(
     job: KnowledgeJob,
     markdown: str,
@@ -446,7 +523,14 @@ def _validate_preview(
     if job.source_url not in markdown:
         raise PreviewValidationError("preview source does not match the job")
     platform = str(job.platform).strip().casefold()
-    if platform == "wechat":
+    is_basic_preview = "source_stage: extracted" in markdown
+    if is_basic_preview:
+        if platform == "wechat":
+            raise PreviewValidationError("WeChat articles must use deterministic cleaning")
+        if "## 原始内容" not in markdown:
+            raise PreviewValidationError("basic preview is missing extracted source text")
+        missing = []
+    elif platform == "wechat":
         if wiki_updates:
             raise PreviewValidationError(
                 "cleaned WeChat articles cannot update Wiki pages automatically"
@@ -470,6 +554,8 @@ def _validate_preview(
             ]
             if not legacy_missing:
                 missing = []
+        if missing and _has_continuous_literature_narrative(markdown):
+            missing = []
     else:
         missing = [
             section
@@ -505,6 +591,18 @@ def _validate_preview(
                 raise PreviewValidationError(
                     "new research pattern does not meet the creation threshold"
                 )
+
+
+def _basic_source_body(markdown: str, title: str) -> str:
+    """Remove the queue's duplicated title and provenance before archiving."""
+
+    source = str(markdown or "").strip()
+    source = re.sub(r"^#\s+[^\r\n]+\r?\n+", "", source, count=1)
+    source = re.sub(r"^(?:>\s+[^\r\n]+\r?\n)+\r?\n?", "", source)
+    source = source.strip()
+    if source and source != title:
+        return source
+    return ""
 
 
 def _distillation_skill(platform: str) -> str:
