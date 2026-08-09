@@ -99,6 +99,57 @@ wiki_updates: []
 """
 
 
+def _narrative_literature_preview(source_url=SOURCE_URL):
+    return f"""---
+source_url: \"{source_url}\"
+source_platform: journal
+source_account: \"示例医学期刊\"
+source_title: \"A study\"
+published_at: \"2026-03-01\"
+evidence_level: full_text_verified
+status: preview
+wiki_updates: []
+---
+
+# A study
+
+## 为什么值得看
+这项研究解决临床决策中的真实不确定性。
+
+## 研究问题
+明确人群、比较和目标结局。
+
+## 研究怎么做
+交代数据、时间顺序和关键变量。
+
+## 统计方法为什么这样选
+普通模型会忽略重复测量；混合模型更适配。
+
+```mermaid
+flowchart LR
+    A[入组] --> B[重复测量]
+    B --> C[结局]
+```
+
+## 主要发现
+给出方向、适用人群与不确定性。
+
+## 这篇研究的新意
+方法应用创新：把适配重复测量的模型用于该临床问题。
+
+## 对科研设计的启发
+将时间顺序和验证设计保留后再考虑迁移。
+
+## 局限与证据边界
+观察性证据不能单独证明因果。
+
+## 来源
+{source_url}
+
+状态：等待用户确认
+"""
+
+
 class KnowledgeCompilerTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
@@ -151,14 +202,23 @@ class KnowledgeCompilerTests(unittest.TestCase):
             / "SKILL.md"
         ).read_text("utf-8")
 
-        self.assertIn("临床问题与 PICO/PECO", skill)
-        self.assertIn("统计方法创新", skill)
-        self.assertIn("Wiki 更新建议", skill)
+        self.assertIn("为什么值得看", skill)
+        self.assertIn("统计方法为什么这样选", skill)
+        self.assertIn("对科研设计的启发", skill)
 
     def test_validator_accepts_preview_from_installed_literature_skill(self):
         accepted = self._compiler().accept_preview(
             self.job.id,
             _installed_literature_skill_preview(),
+            [],
+        )
+
+        self.assertEqual("preview_ready", accepted.status)
+
+    def test_validator_accepts_narrative_literature_explainer_with_method_diagram(self):
+        accepted = self._compiler().accept_preview(
+            self.job.id,
+            _narrative_literature_preview(),
             [],
         )
 

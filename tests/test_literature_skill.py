@@ -55,6 +55,8 @@ class LiteratureSkillContractTests(unittest.TestCase):
         self.assertIn("三重验证", method)
         self.assertIn("status: preview", contract)
         self.assertIn("evidence_level:", contract)
+        self.assertIn("```mermaid", contract)
+        self.assertIn("原论文图", contract)
         self.assertIn("$distill-medical-literature", metadata)
 
 
