@@ -30,6 +30,6 @@
         post: function (path, body) { return request(path, { method: "POST", body: body }); },
         put: function (path, body) { return request(path, { method: "PUT", body: body }); },
         patch: function (path, body) { return request(path, { method: "PATCH", body: body }); },
-        delete: function (path) { return request(path, { method: "DELETE" }); },
+        delete: function (path, body) { return request(path, { method: "DELETE", body: body }); },
     };
 }(window));

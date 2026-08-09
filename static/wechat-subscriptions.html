@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>公众号订阅 - Medical Knowledge Hub</title>
-    <link rel="stylesheet" href="/static/css/app.css?v=20260801">
+    <link rel="stylesheet" href="/static/css/app.css?v=20260809">
 </head>
 <body class="subscription-surface">
 <div id="app-shell"></div>
@@ -62,10 +62,30 @@
                 <button id="saveAutomation" class="secondary" type="button">保存运行设置</button>
                 <span id="automationStatus" class="status-line" role="status" aria-live="polite"></span>
             </div>
-            <div class="run-section">
-                <h2>公众号运行记录</h2>
-                <div id="wechatRuns" class="run-list" aria-live="polite"><p class="empty-state">正在读取运行记录</p></div>
-            </div>
+            <section class="run-section" aria-labelledby="wechat-run-title">
+                <div class="run-section__heading">
+                    <div>
+                        <h2 id="wechat-run-title">公众号运行记录</h2>
+                        <p>已完成记录自动保留 14 天；失败和待确认任务由你决定何时处理。</p>
+                    </div>
+                    <span id="wechatRunSummary" class="run-summary" role="status" aria-live="polite"></span>
+                </div>
+                <div class="run-toolbar" aria-label="运行记录工具栏">
+                    <label class="run-select-all"><input id="selectAllWechatRuns" type="checkbox"> 全选当前</label>
+                    <select id="wechatRunFilter" aria-label="筛选运行记录">
+                        <option value="all">全部记录</option>
+                        <option value="attention">需处理</option>
+                        <option value="completed">已完成</option>
+                    </select>
+                </div>
+                <div class="run-bulk-actions" aria-label="批量操作">
+                    <button id="retrySelectedWechatRuns" class="secondary" type="button" disabled>继续失败任务</button>
+                    <button id="openSelectedWechatReview" class="secondary" type="button" disabled>查看待确认</button>
+                    <button id="deleteSelectedWechatRuns" class="run-delete" type="button" disabled>删除记录</button>
+                </div>
+                <div id="wechatRuns" class="run-list" tabindex="0" aria-label="可滚动的公众号运行记录" aria-live="polite"><p class="empty-state">正在读取运行记录</p></div>
+                <button id="showMoreWechatRuns" class="text-action run-more" type="button" hidden>显示更多记录</button>
+            </section>
         </aside>
     </div>
 </main>
@@ -97,6 +117,13 @@
     const wechatDailyLimit = document.getElementById("wechatDailyLimit");
     const accountStatus = document.getElementById("accountStatus");
     const runsContainer = document.getElementById("wechatRuns");
+    const selectAllRuns = document.getElementById("selectAllWechatRuns");
+    const runFilter = document.getElementById("wechatRunFilter");
+    const retrySelectedRuns = document.getElementById("retrySelectedWechatRuns");
+    const openSelectedReview = document.getElementById("openSelectedWechatReview");
+    const deleteSelectedRuns = document.getElementById("deleteSelectedWechatRuns");
+    const showMoreRuns = document.getElementById("showMoreWechatRuns");
+    const runSummary = document.getElementById("wechatRunSummary");
     const wechatRunIssue = document.getElementById("wechatRunIssue");
     const statusLabels = {
         discovering: "正在发现",
@@ -110,6 +137,8 @@
     let subscriptions = [];
     let runHistory = [];
     let selectedFailedRun = null;
+    let selectedRunIds = new Set();
+    let runVisibleLimit = 10;
 
     function escapeHtml(value) {
         const span = document.createElement("span");
@@ -130,18 +159,70 @@
         }
     }
 
+    function relevantRuns() {
+        const ids = new Set(subscriptions.map(item => item.id));
+        return runHistory.filter(run => ids.has(run.subscription_id));
+    }
+
+    function filteredRuns() {
+        const runs = relevantRuns();
+        if (runFilter.value === "attention") {
+            return runs.filter(run => run.status === "failed" || run.status === "waiting_confirmation");
+        }
+        if (runFilter.value === "completed") {
+            return runs.filter(run => run.status === "completed");
+        }
+        return runs;
+    }
+
+    function updateRunControls(visible, total) {
+        const selected = relevantRuns().filter(run => selectedRunIds.has(run.id));
+        const selectedIds = new Set(selected.map(run => run.id));
+        selectedRunIds = selectedIds;
+        const selectedVisible = visible.filter(run => selectedIds.has(run.id));
+        selectAllRuns.checked = visible.length > 0 && selectedVisible.length === visible.length;
+        selectAllRuns.indeterminate = selectedVisible.length > 0 && selectedVisible.length < visible.length;
+        selectAllRuns.disabled = visible.length === 0;
+        retrySelectedRuns.disabled = !selected.some(run => run.status === "failed");
+        openSelectedReview.disabled = !selected.some(run => run.status === "waiting_confirmation");
+        deleteSelectedRuns.disabled = selected.length === 0;
+        showMoreRuns.hidden = total <= visible.length;
+        runSummary.textContent = total ? `显示 ${visible.length}/${total} 条；已选 ${selected.length} 条` : "暂无记录";
+    }
+
     function renderRuns(runs) {
         runHistory = runs;
-        const ids = new Set(subscriptions.map(item => item.id));
-        const relevant = runs.filter(run => ids.has(run.subscription_id)).slice(0, 8);
-        runsContainer.innerHTML = relevant.map(run => {
+        const relevantIds = new Set(relevantRuns().map(run => run.id));
+        selectedRunIds = new Set([...selectedRunIds].filter(id => relevantIds.has(id)));
+        const visible = filteredRuns().slice(0, runVisibleLimit);
+        const total = filteredRuns().length;
+        const statusClasses = {
+            discovering: "progress",
+            filtered: "progress",
+            distilling: "progress",
+            waiting_confirmation: "attention",
+            completed: "completed",
+            failed: "failed"
+        };
+        runsContainer.innerHTML = visible.map(run => {
             const subscription = subscriptions.find(item => item.id === run.subscription_id);
             const account = run.account_name || (subscription && subscription.name) || "公众号";
             const error = run.error ? `<p class="run-error">${escapeHtml(run.error)}</p>` : "";
             const step = run.failed_step ? `<span>失败步骤：${escapeHtml(run.failed_step)}；恢复位置：${escapeHtml(run.retry_from || "最近检查点")}</span>` : "";
-            const retry = run.status === "failed" ? `<button class="secondary run-retry" type="button" data-run-id="${escapeHtml(run.id)}">查看并继续</button>` : "";
-            return `<div class="run-row"><strong>${escapeHtml(account)} · ${escapeHtml(statusLabels[run.status] || run.status)}</strong><span>发现 ${run.discovered} 篇，过滤 ${run.filtered} 篇，待确认 ${run.queued} 篇</span>${step}${error}${retry}</div>`;
-        }).join("") || '<p class="empty-state">还没有公众号运行记录。</p>';
+            const issue = run.status === "failed" ? `<button class="text-action run-row__action" type="button" data-run-issue="${escapeHtml(run.id)}">查看并继续</button>` : "";
+            const review = run.status === "waiting_confirmation" ? '<a class="text-action run-row__action" href="/review.html">查看待确认</a>' : "";
+            const checked = selectedRunIds.has(run.id) ? " checked" : "";
+            const statusClass = statusClasses[run.status] || "progress";
+            return `<article class="run-row${checked ? " run-row--selected" : ""}">
+                <label class="run-row__select" aria-label="选择 ${escapeHtml(account)} 的运行记录"><input type="checkbox" data-run-select="${escapeHtml(run.id)}"${checked}></label>
+                <div class="run-row__body">
+                    <div class="run-row__headline"><strong>${escapeHtml(account)}</strong><span class="run-status run-status--${statusClass}">${escapeHtml(statusLabels[run.status] || run.status)}</span></div>
+                    <span>发现 ${run.discovered} 篇，过滤 ${run.filtered} 篇，待确认 ${run.queued} 篇</span>${step}${error}
+                </div>
+                <div class="run-row__actions">${issue}${review}</div>
+            </article>`;
+        }).join("") || '<p class="empty-state">当前筛选条件下还没有运行记录。</p>';
+        updateRunControls(visible, total);
     }
 
     function openRunIssue(run) {
@@ -215,11 +296,76 @@
         }
     });
 
+    runsContainer.addEventListener("change", event => {
+        const checkbox = event.target.closest("[data-run-select]");
+        if (!checkbox) return;
+        if (checkbox.checked) selectedRunIds.add(checkbox.dataset.runSelect);
+        else selectedRunIds.delete(checkbox.dataset.runSelect);
+        renderRuns(runHistory);
+    });
+
     runsContainer.addEventListener("click", event => {
-        const button = event.target.closest("[data-run-id]");
+        const button = event.target.closest("[data-run-issue]");
         if (!button) return;
-        const run = runHistory.find(item => item.id === button.dataset.runId);
+        const run = runHistory.find(item => item.id === button.dataset.runIssue);
         if (run) openRunIssue(run);
+    });
+
+    selectAllRuns.addEventListener("change", () => {
+        const visible = filteredRuns().slice(0, runVisibleLimit);
+        visible.forEach(run => {
+            if (selectAllRuns.checked) selectedRunIds.add(run.id);
+            else selectedRunIds.delete(run.id);
+        });
+        renderRuns(runHistory);
+    });
+
+    runFilter.addEventListener("change", () => {
+        selectedRunIds.clear();
+        runVisibleLimit = 10;
+        renderRuns(runHistory);
+    });
+
+    showMoreRuns.addEventListener("click", () => {
+        runVisibleLimit += 10;
+        renderRuns(runHistory);
+    });
+
+    retrySelectedRuns.addEventListener("click", async () => {
+        const runIds = relevantRuns().filter(run => selectedRunIds.has(run.id) && run.status === "failed").map(run => run.id);
+        if (!runIds.length) return;
+        retrySelectedRuns.disabled = true;
+        accountStatus.textContent = `正在继续 ${runIds.length} 条失败任务`;
+        try {
+            await api.post("/api/ext/literature/runs/retry-selected", { run_ids: runIds });
+            selectedRunIds.clear();
+            await load();
+            accountStatus.textContent = `已开始继续 ${runIds.length} 条失败任务`;
+        } catch (error) {
+            accountStatus.textContent = `批量继续失败：${error.message}`;
+            renderRuns(runHistory);
+        }
+    });
+
+    openSelectedReview.addEventListener("click", () => {
+        window.location.assign("/review.html");
+    });
+
+    deleteSelectedRuns.addEventListener("click", async () => {
+        const runIds = [...selectedRunIds];
+        if (!runIds.length) return;
+        const confirmed = window.confirm(`删除所选 ${runIds.length} 条运行记录？这不会删除订阅、已发现链接或 Obsidian 笔记。`);
+        if (!confirmed) return;
+        deleteSelectedRuns.disabled = true;
+        try {
+            await api.delete("/api/ext/literature/runs", { run_ids: runIds });
+            selectedRunIds.clear();
+            await load();
+            accountStatus.textContent = "已删除所选运行记录";
+        } catch (error) {
+            accountStatus.textContent = `删除失败：${error.message}`;
+            renderRuns(runHistory);
+        }
     });
 
     document.getElementById("closeWechatRunIssue").addEventListener("click", () => wechatRunIssue.close());

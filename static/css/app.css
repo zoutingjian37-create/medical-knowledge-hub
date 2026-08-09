@@ -780,9 +780,124 @@ body.subscription-surface .page-shell {
     padding: 22px 26px 26px;
 }
 
+.run-section__heading {
+    display: flex;
+    align-items: start;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.run-section__heading p {
+    max-width: 36ch;
+    margin: 6px 0 0;
+    color: var(--ink-soft);
+    font-size: 12px;
+    line-height: 1.55;
+}
+
+.run-summary {
+    flex: 0 0 auto;
+    padding-top: 3px;
+    color: var(--ink-soft);
+    font-size: 12px;
+    line-height: 1.5;
+    text-align: right;
+}
+
+.run-toolbar,
+.run-bulk-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.run-toolbar {
+    justify-content: space-between;
+    margin-top: 18px;
+}
+
+.run-toolbar select {
+    min-height: 36px;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-sm);
+    padding: 7px 28px 7px 10px;
+    background: var(--surface);
+    color: var(--ink);
+    font: inherit;
+    font-size: 12px;
+}
+
+.run-select-all {
+    display: inline-flex;
+    min-height: 36px;
+    align-items: center;
+    gap: 8px;
+    color: var(--ink);
+    font-size: 12px;
+    font-weight: 650;
+}
+
+.run-select-all input,
+.run-row__select input {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    accent-color: var(--accent);
+}
+
+.run-bulk-actions {
+    margin-top: 10px;
+}
+
+.run-bulk-actions button,
+.run-row__action {
+    min-height: 34px !important;
+    padding: 7px 10px !important;
+    font-size: 12px;
+}
+
+.run-delete {
+    border: 1px solid #e7c5c2 !important;
+    border-radius: var(--radius-sm);
+    background: #fffafa;
+    color: #a53d36;
+    font: inherit;
+    font-weight: 680;
+}
+
+.run-delete:hover:not(:disabled) {
+    border-color: #d99d98 !important;
+    background: #fff2f1;
+}
+
 .run-list,
 .subscription-list {
     margin-top: 14px;
+}
+
+.run-list {
+    scrollbar-color: #a8cbc8 transparent;
+    scrollbar-width: thin;
+}
+
+.run-list::-webkit-scrollbar {
+    width: 10px;
+}
+
+.run-list::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.run-list::-webkit-scrollbar-thumb {
+    border: 3px solid var(--surface);
+    border-radius: 999px;
+    background: #a8cbc8;
+}
+
+.run-list:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
 }
 
 .run-row,
@@ -790,6 +905,79 @@ body.subscription-surface .page-shell {
     display: grid;
     gap: 5px;
     padding: 14px 0;
+}
+
+.run-row {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: start;
+    column-gap: 10px;
+}
+
+.run-row--selected {
+    background: #f8fcfb;
+    box-shadow: 0 0 0 5px #f8fcfb;
+}
+
+.run-row__select {
+    display: grid;
+    min-height: 22px;
+    place-items: center;
+    cursor: pointer;
+}
+
+.run-row__body {
+    display: grid;
+    min-width: 0;
+    gap: 5px;
+}
+
+.run-row__headline {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 7px;
+}
+
+.run-status {
+    display: inline-flex;
+    align-items: center;
+    min-height: 22px;
+    border-radius: 999px;
+    padding: 2px 8px;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.3;
+    white-space: nowrap;
+}
+
+.run-status--progress {
+    background: #eef6f5;
+    color: #176e69;
+}
+
+.run-status--attention {
+    background: #fff7e7;
+    color: #8a5c16;
+}
+
+.run-status--completed {
+    background: #eff7f2;
+    color: #2c6c4d;
+}
+
+.run-status--failed {
+    background: #fff1f0;
+    color: #ad413a;
+}
+
+.run-row__actions {
+    display: flex;
+    align-items: start;
+    justify-content: end;
+}
+
+.run-row__action {
+    white-space: nowrap;
 }
 
 .run-row + .run-row,
@@ -822,6 +1010,32 @@ body.subscription-surface .page-shell {
 
 .run-actions {
     margin-top: 7px;
+}
+
+.run-more {
+    width: auto;
+    min-height: 36px;
+    margin-top: 10px;
+    border: 0;
+    padding: 0;
+    background: transparent;
+    cursor: pointer;
+}
+
+@media (min-width: 681px) {
+    .subscription-layout > aside.subscription-section .run-section {
+        display: flex;
+        min-height: 0;
+        flex-direction: column;
+    }
+
+    .subscription-layout > aside.subscription-section .run-list {
+        max-block-size: clamp(260px, 36vh, 500px);
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        padding-right: 5px;
+        scrollbar-gutter: stable;
+    }
 }
 
 .subscription-form {
@@ -1468,6 +1682,34 @@ body.subscription-surface .page-shell {
     .subscription-item {
         align-items: stretch;
         flex-direction: column;
+    }
+
+    .run-section__heading,
+    .run-toolbar {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .run-summary {
+        padding-top: 0;
+        text-align: left;
+    }
+
+    .run-toolbar select {
+        width: 100%;
+    }
+
+    .run-bulk-actions button {
+        flex: 1 1 auto;
+    }
+
+    .run-row {
+        grid-template-columns: auto minmax(0, 1fr);
+    }
+
+    .run-row__actions {
+        grid-column: 2;
+        justify-content: start;
     }
 
     .review-shortcuts .text-action {

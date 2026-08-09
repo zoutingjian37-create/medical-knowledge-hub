@@ -38,6 +38,7 @@ class KnowledgeSettingsRequest(BaseModel):
 @router.get("/knowledge/jobs", summary="List local knowledge jobs")
 async def list_knowledge_jobs(status: str | None = Query(default=None)):
     compiler = KnowledgeCompiler()
+    compiler.purge_expired_sources()
     compiler.purge_expired_trash()
     jobs = compiler.store.list(status=status)
     if status is None:

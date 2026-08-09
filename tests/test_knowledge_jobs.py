@@ -78,6 +78,36 @@ class KnowledgeJobLifecycleTests(unittest.TestCase):
         self.assertFalse(cached.exists())
         self.assertEqual("needs_reparse", store.get(job.id).status)
 
+    def test_expired_active_source_removes_regenerable_preview_and_handoff(self):
+        from extensions.processing.compiler import KnowledgeCompiler
+        from extensions.processing.job_store import KnowledgeJobStore
+        from extensions.processing.source_cache import SourceCache
+
+        cache = SourceCache(self.cache_root)
+        store = KnowledgeJobStore(self.state_root)
+        cached = cache.put("preview-expiry", self._document().markdown)
+        job = store.create(self._document(), cached, job_id="preview-expiry")
+        compiler = KnowledgeCompiler(store=store, cache=cache)
+        compiler.previews_root.mkdir(parents=True, exist_ok=True)
+        compiler.handoffs_root.mkdir(parents=True, exist_ok=True)
+        preview = compiler.previews_root / f"{job.id}.md"
+        handoff = compiler.handoffs_root / f"{job.id}.md"
+        preview.write_text("temporary preview", "utf-8")
+        handoff.write_text("temporary handoff", "utf-8")
+        store.update(job.id, status="preview_ready", preview_path=str(preview))
+        old = time.time() - 25 * 60 * 60
+        os.utime(cached, (old, old))
+
+        expired = compiler.purge_expired_sources()
+
+        self.assertEqual((job.id,), expired)
+        self.assertFalse(cached.exists())
+        self.assertFalse(preview.exists())
+        self.assertFalse(handoff.exists())
+        refreshed = store.get(job.id)
+        self.assertEqual("needs_reparse", refreshed.status)
+        self.assertEqual("", refreshed.preview_path)
+
     def test_job_json_is_valid_utf8_and_update_is_persistent(self):
         from extensions.processing.job_store import KnowledgeJobStore
         from extensions.processing.source_cache import SourceCache

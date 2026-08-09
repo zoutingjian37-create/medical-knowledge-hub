@@ -122,6 +122,8 @@ class WindowsPackagingTests(unittest.TestCase):
         worker = (ROOT / "extensions/subscriptions/worker.py").read_text("utf-8")
 
         self.assertIn("purge_expired_trash", worker)
+        self.assertIn("purge_expired_sources", worker)
+        self.assertIn("purge_completed(max_age_days=14)", worker)
 
 
 if __name__ == "__main__":

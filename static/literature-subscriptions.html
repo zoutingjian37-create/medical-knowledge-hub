@@ -82,6 +82,23 @@
     const api = window.ContentHubAPI;
     const list = document.getElementById("literatureList");
     const runsContainer = document.getElementById("literatureRuns");
+    const literatureForm = document.getElementById("literatureForm");
+    const kindInput = document.getElementById("kind");
+    const nameInput = document.getElementById("name");
+    const sourceInput = document.getElementById("source");
+    const queryInput = document.getElementById("query");
+    const keywordsInput = document.getElementById("keywords");
+    const requirementInput = document.getElementById("requirement");
+    const dailyLimitInput = document.getElementById("dailyLimit");
+    const collectionInput = document.getElementById("collection");
+    const formStatus = document.getElementById("formStatus");
+    const automationEnabled = document.getElementById("automationEnabled");
+    const runTime = document.getElementById("runTime");
+    const globalLimit = document.getElementById("globalLimit");
+    const saveAutomation = document.getElementById("saveAutomation");
+    const automationStatus = document.getElementById("automationStatus");
+    const zotero = document.getElementById("zotero");
+    const runLiterature = document.getElementById("runLiterature");
     const kindLabels = { journal: "目标期刊", feed: "RSS / Atom", literature_query: "文献检索" };
     const statusLabels = {
         discovering: "正在发现",
@@ -151,17 +168,17 @@
         formStatus.textContent = "正在保存文献订阅";
         try {
             await api.post("/api/ext/subscriptions", {
-                kind: kind.value,
-                name: name.value,
-                source: source.value,
-                query: query.value,
-                keywords: keywords.value.split(",").map(value => value.trim()).filter(Boolean),
-                requirement: requirement.value,
-                daily_limit: Number(dailyLimit.value),
-                zotero_collection: collection.value
+                kind: kindInput.value,
+                name: nameInput.value,
+                source: sourceInput.value,
+                query: queryInput.value,
+                keywords: keywordsInput.value.split(",").map(value => value.trim()).filter(Boolean),
+                requirement: requirementInput.value,
+                daily_limit: Number(dailyLimitInput.value),
+                zotero_collection: collectionInput.value
             });
             event.currentTarget.reset();
-            dailyLimit.value = 5;
+            dailyLimitInput.value = 5;
             formStatus.textContent = "文献订阅已保存";
             await load();
         } catch (error) {

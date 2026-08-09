@@ -42,6 +42,40 @@ class LiteratureRunStore:
         runs = [self.get(path.stem) for path in self.runs_root.glob("*.json")]
         return tuple(sorted(runs, key=lambda item: item.started_at, reverse=True))
 
+    def delete_many(self, run_ids) -> tuple[str, ...]:
+        """Delete selected history entries only, never subscription state or jobs."""
+
+        deleted = []
+        for run_id in dict.fromkeys(str(value).strip() for value in run_ids):
+            if not run_id:
+                continue
+            path = self.runs_root / f"{run_id}.json"
+            if path.exists():
+                path.unlink()
+                deleted.append(run_id)
+        return tuple(deleted)
+
+    def purge_completed(self, *, max_age_days: int = 14) -> tuple[str, ...]:
+        """Keep recent completion history while preserving unfinished work."""
+
+        if max_age_days < 1:
+            raise ValueError("max_age_days must be at least 1")
+        now = datetime.now(timezone.utc)
+        cutoff = now.timestamp() - max_age_days * 24 * 60 * 60
+        expired = []
+        for run in self.list():
+            if run.status != "completed":
+                continue
+            try:
+                updated = datetime.fromisoformat(run.updated_at)
+                if updated.tzinfo is None:
+                    updated = updated.replace(tzinfo=timezone.utc)
+            except ValueError:
+                continue
+            if updated.astimezone(timezone.utc).timestamp() <= cutoff:
+                expired.append(run.id)
+        return self.delete_many(expired)
+
     def update(self, run_id: str, **changes) -> LiteratureRun:
         if "status" in changes and changes["status"] not in RUN_STATUSES:
             raise ValueError(f"unsupported run status: {changes['status']}")

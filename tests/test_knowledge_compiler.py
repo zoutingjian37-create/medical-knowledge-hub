@@ -58,6 +58,47 @@ CHARLS、童年暴露、抑郁和心血管结局。
 """
 
 
+def _installed_literature_skill_preview(source_url=SOURCE_URL):
+    return f"""---
+source_url: "{source_url}"
+source_platform: journal
+source_account: "Clinical Chemistry"
+source_title: "A study"
+published_at: "2026-03-01"
+evidence_level: full_text_verified
+status: preview
+wiki_updates: []
+---
+
+## \u6838\u5fc3\u7ed3\u8bba
+\u7ed3\u8bba\u3002
+## \u4e34\u5e8a\u95ee\u9898\u4e0e PICO/PECO
+\u7814\u7a76\u95ee\u9898\u3002
+## \u6570\u636e\u4e0e\u53d8\u91cf
+\u6570\u636e\u3002
+## \u65b9\u6cd5\u2014\u95ee\u9898\u6620\u5c04
+\u65b9\u6cd5\u3002
+## \u4e3b\u8981\u7ed3\u8bba
+\u4e3b\u8981\u53d1\u73b0\u3002
+## \u7edf\u8ba1\u65b9\u6cd5\u521b\u65b0
+\u7edf\u8ba1\u521b\u65b0\u3002
+## \u5176\u4ed6\u521b\u65b0\u70b9
+\u5176\u4ed6\u521b\u65b0\u3002
+## \u8fc1\u79fb\u65b9\u5411
+\u8fc1\u79fb\u65b9\u5411\u3002
+## \u6f5c\u5728\u9009\u9898
+\u6f5c\u5728\u9009\u9898\u3002
+## \u8bc1\u636e\u8fb9\u754c
+\u8bc1\u636e\u8fb9\u754c\u3002
+## Wiki \u66f4\u65b0\u5efa\u8bae
+\u66f4\u65b0\u5efa\u8bae\u3002
+## \u6765\u6e90
+{source_url}
+
+\u72b6\u6001\uff1a\u7b49\u5f85\u7528\u6237\u786e\u8ba4
+"""
+
+
 class KnowledgeCompilerTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
@@ -102,6 +143,27 @@ class KnowledgeCompilerTests(unittest.TestCase):
         for section in LITERATURE_REQUIRED_SECTIONS:
             self.assertIn(f"## {section}", contract)
 
+    def test_repository_skill_describes_the_installed_output_contract(self):
+        skill = (
+            Path(__file__).parents[1]
+            / "skills"
+            / "distill-medical-literature"
+            / "SKILL.md"
+        ).read_text("utf-8")
+
+        self.assertIn("临床问题与 PICO/PECO", skill)
+        self.assertIn("统计方法创新", skill)
+        self.assertIn("Wiki 更新建议", skill)
+
+    def test_validator_accepts_preview_from_installed_literature_skill(self):
+        accepted = self._compiler().accept_preview(
+            self.job.id,
+            _installed_literature_skill_preview(),
+            [],
+        )
+
+        self.assertEqual("preview_ready", accepted.status)
+
     def test_handoff_references_source_without_copying_article_body(self):
         self.store.update(self.job.id, platform="wechat")
         result = self._compiler().prepare_handoff(self.job.id)
@@ -121,6 +183,12 @@ class KnowledgeCompilerTests(unittest.TestCase):
         handoff = result.handoff_path.read_text("utf-8")
         self.assertIn("$distill-medical-literature", handoff)
         self.assertNotIn("$distill-medical-wechat", handoff)
+
+    def test_literature_handoff_includes_known_publication_date(self):
+        result = self._compiler().prepare_handoff(self.job.id)
+
+        handoff = result.handoff_path.read_text("utf-8")
+        self.assertIn("\u53d1\u5e03\u65e5\u671f\uff1a2026-07-30", handoff)
 
     def test_handoff_uses_configured_vault_page_list(self):
         page = self.vault / "研究要素" / "CHARLS.md"

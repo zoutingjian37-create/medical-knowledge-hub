@@ -69,6 +69,10 @@ class ContinueLoginRequest(BaseModel):
     run_id: str
 
 
+class RunSelectionRequest(BaseModel):
+    run_ids: list[str] = Field(min_length=1, max_length=100)
+
+
 @router.get("/subscriptions", summary="List personal subscriptions")
 async def list_subscriptions():
     return {"subscriptions": [item.to_dict() for item in SubscriptionStore().list()]}
@@ -168,7 +172,48 @@ async def update_automation(request: AutomationRequest):
 
 @router.get("/literature/runs", summary="List literature subscription runs")
 async def list_literature_runs():
-    return {"runs": [run.to_dict() for run in LiteratureRunStore().list()]}
+    runs = LiteratureRunStore()
+    runs.purge_completed(max_age_days=14)
+    return {"runs": [run.to_dict() for run in runs.list()]}
+
+
+@router.delete("/literature/runs", summary="Delete selected local run-history records")
+async def delete_literature_runs(request: RunSelectionRequest):
+    deleted = LiteratureRunStore().delete_many(request.run_ids)
+    return {"deleted_ids": list(deleted)}
+
+
+@router.post("/literature/runs/retry-selected", summary="Retry selected failed subscription runs")
+async def retry_selected_literature_runs(request: RunSelectionRequest):
+    store = LiteratureRunStore()
+    runner = build_subscription_runner()
+    results = []
+    skipped = []
+    for run_id in dict.fromkeys(request.run_ids):
+        try:
+            previous = store.get(run_id)
+        except KeyError:
+            skipped.append({"run_id": run_id, "reason": "not_found"})
+            continue
+        if previous.status != "failed":
+            skipped.append({"run_id": run_id, "reason": "not_failed"})
+            continue
+        try:
+            date_from = date.fromisoformat(previous.date_from) if previous.date_from else None
+            date_to = date.fromisoformat(previous.date_to) if previous.date_to else None
+            results.append(
+                await runner.run_one(
+                    previous.subscription_id,
+                    date_from=date_from,
+                    date_to=date_to,
+                )
+            )
+        except (KeyError, RuntimeError, ValueError) as exc:
+            skipped.append({"run_id": run_id, "reason": "retry_failed", "error": str(exc)})
+    return {
+        "runs": [run.to_dict() for run in results],
+        "skipped": skipped,
+    }
 
 
 @router.post("/literature/runs/run", summary="Run one subscription or all enabled subscriptions now")

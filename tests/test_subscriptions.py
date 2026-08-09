@@ -276,5 +276,88 @@ class SubscriptionApiTests(unittest.TestCase):
             self.assertEqual(1, len(listed.json()["runs"]))
 
 
+class RunHistoryManagementTests(unittest.TestCase):
+    def test_completed_runs_expire_but_failed_runs_stay_until_selected_for_deletion(self):
+        from extensions.subscriptions.runs import LiteratureRunStore
+
+        with TemporaryDirectory() as directory:
+            store = LiteratureRunStore(Path(directory))
+            with patch(
+                "extensions.subscriptions.runs._utc_now",
+                return_value="2026-07-01T08:30:00+00:00",
+            ):
+                completed = store.create("completed")
+                store.update(completed.id, status="completed")
+                failed = store.create("failed")
+                store.update(failed.id, status="failed")
+            with patch(
+                "extensions.subscriptions.runs._utc_now",
+                return_value="2026-08-01T08:30:00+00:00",
+            ):
+                recent = store.create("recent")
+                store.update(recent.id, status="completed")
+
+            expired = store.purge_completed(max_age_days=14)
+            deleted = store.delete_many([failed.id, "missing-run"])
+
+            self.assertEqual((completed.id,), expired)
+            self.assertEqual((failed.id,), deleted)
+            self.assertEqual((recent.id,), tuple(run.id for run in store.list()))
+
+    def test_run_history_routes_retry_failed_items_and_delete_selected_records(self):
+        from fastapi.testclient import TestClient
+        from app import app
+        from extensions.subscriptions.runs import LiteratureRunStore
+        from extensions.subscriptions.store import SubscriptionStore
+
+        with TemporaryDirectory() as directory, patch.dict(
+            os.environ, {"CONTENT_HUB_STATE_DIR": directory}
+        ):
+            root = Path(directory)
+            subscription = SubscriptionStore(root).create(
+                kind="wechat_account", name="示例公众号", source="示例公众号"
+            )
+            run_store = LiteratureRunStore(root)
+            failed = run_store.create(subscription.id)
+            failed = run_store.update(
+                failed.id,
+                status="failed",
+                date_from="2026-08-01",
+                date_to="2026-08-02",
+            )
+
+            class Runner:
+                def __init__(self):
+                    self.calls = []
+
+                async def run_one(self, subscription_id, *, date_from=None, date_to=None):
+                    self.calls.append((subscription_id, date_from, date_to))
+                    return run_store.create(subscription_id)
+
+            runner = Runner()
+            with patch(
+                "routes_ext.subscriptions.build_subscription_runner",
+                return_value=runner,
+            ), TestClient(app) as client:
+                retried = client.post(
+                    "/api/ext/literature/runs/retry-selected",
+                    json={"run_ids": [failed.id]},
+                )
+                deleted = client.request(
+                    "DELETE",
+                    "/api/ext/literature/runs",
+                    json={"run_ids": [failed.id]},
+                )
+
+            self.assertEqual(200, retried.status_code)
+            self.assertEqual(1, len(retried.json()["runs"]))
+            self.assertEqual([(subscription.id, "2026-08-01", "2026-08-02")], [
+                (identifier, start.isoformat(), end.isoformat())
+                for identifier, start, end in runner.calls
+            ])
+            self.assertEqual(200, deleted.status_code)
+            self.assertEqual([failed.id], deleted.json()["deleted_ids"])
+
+
 if __name__ == "__main__":
     unittest.main()

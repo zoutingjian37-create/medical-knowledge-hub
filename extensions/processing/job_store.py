@@ -199,6 +199,9 @@ def expire_jobs(
     expired = cache.purge_expired(max_age_hours=max_age_hours)
     for job_id in expired:
         try:
+            job = store.get(job_id)
+            if job.status in TRASH_STATUSES or job.status == "approved":
+                continue
             store.update(job_id, status="needs_reparse", cache_path="")
         except KeyError:
             continue

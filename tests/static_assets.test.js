@@ -174,6 +174,14 @@ test("wechat and literature subscriptions are separate operational modules", () 
     assert.match(wechat, /从检查点继续/);
     assert.match(wechat, /subscription_id:\s*run\.subscription_id/);
     assert.match(wechat, /wechatRunIssue\.showModal\(\)/);
+    assert.match(wechat, /id="selectAllWechatRuns"/);
+    assert.match(wechat, /id="wechatRunFilter"/);
+    assert.match(wechat, /id="retrySelectedWechatRuns"[^>]*disabled/);
+    assert.match(wechat, /id="deleteSelectedWechatRuns"[^>]*disabled/);
+    assert.match(wechat, /id="showMoreWechatRuns"/);
+    assert.match(wechat, /\/api\/ext\/literature\/runs\/retry-selected/);
+    assert.match(wechat, /api\.delete\("\/api\/ext\/literature\/runs"/);
+    assert.match(wechat, /已完成记录自动保留 14 天/);
     assert.match(wechat, /scope:\s*['"]wechat['"]/);
     assert.doesNotMatch(wechat, /Zotero|导出个人配置|导入个人配置|RSS \/ Atom/);
 
@@ -191,6 +199,35 @@ test("wechat and literature subscriptions are separate operational modules", () 
     assert.match(shell, /公众号订阅/);
     assert.match(shell, /文献订阅/);
     assert.doesNotMatch(shell, /订阅中心/);
+    const client = fs.readFileSync(path.join(__dirname, "..", "static", "js", "api-client.js"), "utf8");
+    assert.match(client, /delete:\s*function\s*\(path, body\)/);
+});
+
+test("literature subscription form resolves its own fields instead of browser globals", () => {
+    const literature = fs.readFileSync(
+        path.join(__dirname, "..", "static", "literature-subscriptions.html"),
+        "utf8",
+    );
+
+    for (const field of [
+        "literatureForm",
+        "kind",
+        "name",
+        "source",
+        "query",
+        "keywords",
+        "requirement",
+        "dailyLimit",
+        "collection",
+        "formStatus",
+    ]) {
+        assert.match(
+            literature,
+            new RegExp(
+                `const \\w+ = document\\.getElementById\\("${field}"\\);`,
+            ),
+        );
+    }
 });
 
 test("review page exposes the complete review-gated workflow", () => {

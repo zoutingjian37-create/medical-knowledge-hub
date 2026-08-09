@@ -10,7 +10,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from .archive import clean_markdown, is_advertisement_document
-from .job_store import KnowledgeJob, KnowledgeJobStore
+from .job_store import KnowledgeJob, KnowledgeJobStore, expire_jobs
 from .source_cache import SourceCache
 
 
@@ -39,6 +39,8 @@ LITERATURE_REQUIRED_SECTIONS = (
     "局限与证据边界",
     "来源",
 )
+LEGACY_LITERATURE_REQUIRED_SECTIONS = LITERATURE_REQUIRED_SECTIONS
+LITERATURE_REQUIRED_SECTIONS = REQUIRED_SECTIONS
 RESERVED_WIKI_ROOTS = {"微信公众号", "证据卡", "系统"}
 
 
@@ -105,6 +107,13 @@ class KnowledgeCompiler:
             f"- 现有 Wiki 页面：{wiki_pages or '尚无页面'}\n\n"
             "只生成预览，不直接写入 Obsidian。正文不要复制进任务文件；"
             "输出完成后由用户在软件中确认。\n"
+        )
+        handoff = handoff.replace(
+            f"- 临时正文：`{cache_path}`\n",
+            (
+                f"- 发布日期：{job.published_at or '未识别'}\n"
+                f"- 临时正文：`{cache_path}`\n"
+            ),
         )
         _atomic_write(handoff_path, handoff)
         self.store.update(job_id, status="handoff_ready")
@@ -407,6 +416,28 @@ class KnowledgeCompiler:
                 purged.append(job.id)
         return tuple(purged)
 
+    def purge_expired_sources(self, max_age_hours: int = 24) -> tuple[str, ...]:
+        """Remove regenerable source text and previews once their cache expires."""
+
+        expired = expire_jobs(self.cache, self.store, max_age_hours=max_age_hours)
+        cleared = []
+        for job_id in expired:
+            try:
+                job = self.store.get(job_id)
+            except KeyError:
+                continue
+            if job.status != "needs_reparse":
+                continue
+            (self.previews_root / f"{job.id}.md").unlink(missing_ok=True)
+            (self.handoffs_root / f"{job.id}.md").unlink(missing_ok=True)
+            self.store.update(
+                job.id,
+                preview_path="",
+                error="temporary source expired; parse the public link again",
+            )
+            cleared.append(job.id)
+        return tuple(cleared)
+
 def _validate_preview(
     job: KnowledgeJob,
     markdown: str,
@@ -429,6 +460,16 @@ def _validate_preview(
                 rf"^##\s+{re.escape(section)}\s*$", markdown, re.MULTILINE
             )
         ]
+        if missing:
+            legacy_missing = [
+                section
+                for section in LEGACY_LITERATURE_REQUIRED_SECTIONS
+                if not re.search(
+                    rf"^##\s+{re.escape(section)}\s*$", markdown, re.MULTILINE
+                )
+            ]
+            if not legacy_missing:
+                missing = []
     else:
         missing = [
             section
