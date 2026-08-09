@@ -230,6 +230,31 @@ test("literature subscription form resolves its own fields instead of browser gl
     }
 });
 
+test("literature subscription form progressively discloses source-specific fields", () => {
+    const literature = fs.readFileSync(
+        path.join(__dirname, "..", "static", "literature-subscriptions.html"),
+        "utf8",
+    );
+
+    for (const field of [
+        "subscriptionModeHelp",
+        "sourceField",
+        "sourceLabel",
+        "sourceHelp",
+        "queryField",
+        "keywordsField",
+        "requirementField",
+    ]) {
+        assert.match(literature, new RegExp(`id="${field}"`));
+    }
+
+    assert.match(literature, /function updateSubscriptionMode\(\)/);
+    assert.match(literature, /kindInput\.addEventListener\("change", updateSubscriptionMode\)/);
+    assert.match(literature, /queryField\.hidden\s*=/);
+    assert.match(literature, /keywordsField\.hidden\s*=/);
+    assert.match(literature, /仅在运行文献讲解 Skill 时生效/);
+});
+
 test("review page exposes the complete review-gated workflow", () => {
     const html = fs.readFileSync(path.join(__dirname, "..", "static", "review.html"), "utf8");
     const trash = fs.readFileSync(path.join(__dirname, "..", "static", "trash.html"), "utf8");

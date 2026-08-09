@@ -20,8 +20,8 @@
         <section class="subscription-section subscription-section--main" aria-labelledby="literature-form-title">
             <header class="subscription-section__header">
                 <div>
-                    <h2 id="literature-form-title">新增文献订阅</h2>
-                    <p>有 RSS 时优先填写 RSS。没有 RSS 时使用 PubMed 或 Europe PMC 查询。</p>
+                    <h2 id="literature-form-title">建立文献订阅</h2>
+                    <p>先选择发现来源，只填写当前方式需要的信息。自动发现、入 Zotero 与后续讲解彼此独立。</p>
                 </div>
             </header>
             <form id="literatureForm" class="subscription-form subscription-section__body">
@@ -33,10 +33,16 @@
                     </select>
                 </label>
                 <label class="field-label">名称<input id="name" required placeholder="例如：目标期刊或研究主题"></label>
-                <label class="field-label wide">RSS 或期刊主页<input id="source" placeholder="https://example.org/rss.xml"></label>
-                <label class="field-label wide">PubMed / Europe PMC 查询<input id="query" placeholder="例如：target trial emulation"></label>
-                <label class="field-label wide">关键词（逗号分隔）<input id="keywords" placeholder="cardiovascular, causal inference"></label>
-                <label class="field-label wide">提炼要求<textarea id="requirement" rows="4" placeholder="只保留高质量医学研究，关注可迁移的统计方法与创新点"></textarea></label>
+                <p id="subscriptionModeHelp" class="subscription-mode-guide wide" role="status" aria-live="polite"></p>
+                <label id="sourceField" class="field-label wide"><span id="sourceLabel">RSS / Atom 地址</span><input id="source" placeholder="https://example.org/feed.xml"></label>
+                <p id="sourceHelp" class="field-help wide"></p>
+                <label id="queryField" class="field-label wide">PubMed / Europe PMC 查询<input id="query" placeholder="例如：target trial emulation"></label>
+                <label id="keywordsField" class="field-label wide">关键词（逗号分隔）<input id="keywords" placeholder="cardiovascular, causal inference"></label>
+                <details id="requirementField" class="skill-preference wide">
+                    <summary>文献讲解偏好（可选）</summary>
+                    <p>仅在运行文献讲解 Skill 时生效，不影响自动发现、下载或保存到 Zotero。</p>
+                    <label class="field-label">提炼要求<textarea id="requirement" rows="4" placeholder="例如：优先关注可迁移的统计方法、研究设计与创新点"></textarea></label>
+                </details>
                 <label class="field-label">每日上限<input id="dailyLimit" type="number" min="1" max="100" value="5"></label>
                 <label class="field-label">Zotero 目录<input id="collection" placeholder="默认使用订阅名称"></label>
                 <button class="primary wide" type="submit">保存文献订阅</button>
@@ -56,7 +62,7 @@
             <header class="subscription-section__header">
                 <div>
                     <h2 id="literature-automation-title">每日运行</h2>
-                    <p>本机统一计划会处理所有已启用订阅，关闭后仍可手动运行。</p>
+                    <p>本机计划只处理已启用订阅。关闭自动运行后，“立即运行”仍可用，Zotero 需要保持启动。</p>
                 </div>
             </header>
             <div class="subscription-section__body automation-form">
@@ -89,6 +95,13 @@
     const queryInput = document.getElementById("query");
     const keywordsInput = document.getElementById("keywords");
     const requirementInput = document.getElementById("requirement");
+    const subscriptionModeHelp = document.getElementById("subscriptionModeHelp");
+    const sourceField = document.getElementById("sourceField");
+    const sourceLabel = document.getElementById("sourceLabel");
+    const sourceHelp = document.getElementById("sourceHelp");
+    const queryField = document.getElementById("queryField");
+    const keywordsField = document.getElementById("keywordsField");
+    const requirementField = document.getElementById("requirementField");
     const dailyLimitInput = document.getElementById("dailyLimit");
     const collectionInput = document.getElementById("collection");
     const formStatus = document.getElementById("formStatus");
@@ -111,6 +124,41 @@
         failed: "失败"
     };
     let subscriptions = [];
+    const modeCopy = {
+        feed: {
+            description: "从公开 RSS 或 Atom 发现新文献。适合期刊、学会或专题网站。",
+            sourceLabel: "RSS / Atom 地址",
+            sourcePlaceholder: "https://example.org/feed.xml",
+            sourceHelp: "填写公开订阅地址。系统会定期读取新条目并按 DOI、PMID、OpenAlex ID 或规范化链接去重。",
+            showSearch: false
+        },
+        journal: {
+            description: "从标准期刊元数据来源发现新文章。适合明确要追踪的期刊。",
+            sourceLabel: "ISSN 或期刊主页",
+            sourcePlaceholder: "例如：0000-0000 或 https://journal.example.org",
+            sourceHelp: "填写 ISSN 或官方期刊主页。没有公开全文时，任务会提示你通过学校权限和 Zotero Connector 接力。",
+            showSearch: false
+        },
+        literature_query: {
+            description: "用 PubMed 或 Europe PMC 按检索式发现文献。适合研究问题或方法主题。",
+            sourceLabel: "来源主页（可选）",
+            sourcePlaceholder: "可留空；例如期刊主页",
+            sourceHelp: "检索式决定发现范围，关键词用于后续筛选与归类。来源主页可留空。",
+            showSearch: true
+        }
+    };
+
+    function updateSubscriptionMode() {
+        const selected = modeCopy[kindInput.value] || modeCopy.feed;
+        subscriptionModeHelp.textContent = selected.description;
+        sourceLabel.textContent = selected.sourceLabel;
+        sourceInput.placeholder = selected.sourcePlaceholder;
+        sourceHelp.textContent = selected.sourceHelp;
+        sourceField.hidden = false;
+        queryField.hidden = !selected.showSearch;
+        keywordsField.hidden = !selected.showSearch;
+        requirementField.hidden = false;
+    }
 
     function escapeHtml(value) {
         const span = document.createElement("span");
@@ -179,6 +227,7 @@
             });
             event.currentTarget.reset();
             dailyLimitInput.value = 5;
+            updateSubscriptionMode();
             formStatus.textContent = "文献订阅已保存";
             await load();
         } catch (error) {
@@ -242,6 +291,9 @@
             runLiterature.textContent = "立即运行全部";
         }
     });
+
+    kindInput.addEventListener("change", updateSubscriptionMode);
+    updateSubscriptionMode();
 
     api.get("/api/ext/zotero/status").then(value => {
         zotero.textContent = value.ready ? "Zotero 已连接" : "Zotero 未启动或本地接口未开启";

@@ -32,4 +32,4 @@ description: 将医学论文、医学公众号文献讲解、论文摘要或全�
 
 ## 输出
 
-严格遵循 [输出契约](references/output-contract.md)，其中包括“核心结论、临床问题与 PICO/PECO、数据与变量、方法—问题映射、主要结论、统计方法创新、其他创新点、迁移方向、潜在选题、证据边界、Wiki 更新建议、来源”。风格方法和反例见 [讲解方法审计](references/style-methodology.md)。只生成预览，等待用户确认后再写入 Obsidian。
+严格遵循 [输出契约](references/output-contract.md)，其中包括“核心结论、临床问题与 PICO/PECO、数据与变量、方法—问题映射、主要发现（主要结论）、这篇研究的新意（统计方法创新与其他创新点）、迁移方向、潜在选题、证据边界、Wiki 更新建议、来源”。风格方法和反例见 [讲解方法审计](references/style-methodology.md)。只生成预览，等待用户确认后再写入 Obsidian。

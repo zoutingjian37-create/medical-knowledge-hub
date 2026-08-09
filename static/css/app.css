@@ -1048,6 +1048,50 @@ body.subscription-surface .page-shell {
     grid-column: 1 / -1;
 }
 
+.subscription-mode-guide {
+    margin: 2px 0 0;
+    padding: 11px 13px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--accent-soft);
+    color: var(--accent-strong);
+    font-size: 13px;
+    line-height: 1.55;
+}
+
+.subscription-form [hidden] {
+    display: none !important;
+}
+
+.skill-preference {
+    border-top: 1px solid var(--line);
+    padding-top: 14px;
+}
+
+.skill-preference summary {
+    color: var(--ink);
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 680;
+    line-height: 1.5;
+}
+
+.skill-preference summary::marker {
+    color: var(--accent-strong);
+}
+
+.skill-preference p {
+    max-width: 68ch;
+    margin: 8px 0 12px;
+    color: var(--ink-soft);
+    font-size: 12px;
+    line-height: 1.55;
+}
+
+.skill-preference .field-label {
+    margin-top: 2px;
+}
+
 .saved-subscriptions__heading,
 .subscription-item {
     display: flex;
