@@ -62,7 +62,7 @@ def _installed_literature_skill_preview(source_url=SOURCE_URL):
     return f"""---
 source_url: "{source_url}"
 source_platform: journal
-source_account: "Clinical Chemistry"
+source_account: "示例医学期刊"
 source_title: "A study"
 published_at: "2026-03-01"
 evidence_level: full_text_verified
