@@ -16,7 +16,7 @@
     </header>
     <nav class="review-shortcuts" aria-label="内容入口">
         <button id="refresh" class="secondary">刷新任务</button>
-        <button id="skillDefault" class="secondary" aria-pressed="true">默认用 Skill 提炼：开启</button>
+        <button id="skillDefault" class="secondary" aria-pressed="true">文献自动讲解：开启</button>
         <a class="button" href="/inbox.html">粘贴新链接</a>
         <a class="button" href="/wechat-collect.html">查找公众号</a>
         <a class="text-action" href="/trash.html">打开回收站</a>
@@ -30,6 +30,7 @@
             <span id="jobSelectionSummary" class="selection-summary">已选 0 项</span>
         </div>
         <div class="review-bulk-actions">
+            <button id="recleanSelected" class="secondary" type="button" disabled>重新清洗公众号</button>
             <button id="previewSelected" class="secondary" type="button" disabled>预览</button>
             <button id="saveSelected" type="button" disabled>保存到 Obsidian</button>
             <button id="deleteSelected" class="danger" type="button" disabled>删除</button>
@@ -43,7 +44,7 @@
         <strong>内容预览</strong>
         <button id="closePreview" class="secondary">关闭</button>
     </div>
-    <pre id="previewText" class="dialog-body"></pre>
+    <div id="previewContent" class="dialog-body preview-content"></div>
     <div class="dialog-actions">
         <span id="previewMessage" class="dialog-message">确认前不会改动 Obsidian。</span>
         <button id="savePreview">确认保存到 Obsidian</button>
@@ -57,7 +58,7 @@
     "use strict";
     var jobsRoot = document.getElementById("jobs");
     var dialog = document.getElementById("previewDialog");
-    var previewText = document.getElementById("previewText");
+    var previewContent = document.getElementById("previewContent");
     var previewMessage = document.getElementById("previewMessage");
     var savePreview = document.getElementById("savePreview");
     var previewJobIds = [];
@@ -69,6 +70,7 @@
     var selectAllJobs = document.getElementById("selectAllJobs");
     var selectionSummary = document.getElementById("jobSelectionSummary");
     var previewSelected = document.getElementById("previewSelected");
+    var recleanSelected = document.getElementById("recleanSelected");
     var saveSelected = document.getElementById("saveSelected");
     var deleteSelected = document.getElementById("deleteSelected");
     var labels = {
@@ -143,10 +145,10 @@
             }));
         }
         if (["pending", "failed", "handoff_ready"].includes(job.status)) {
-            actions.append(button("自动提取重点", "", async function (event) {
+            actions.append(button(job.platform === "wechat" ? "生成清洗预览" : "生成文献讲解", "", async function (event) {
                 var control = event.currentTarget;
                 control.disabled = true;
-                setMessage(card, "正在提取重点并生成预览，通常需要一至数分钟……");
+                setMessage(card, job.platform === "wechat" ? "正在去除广告并保留正文……" : "正在生成通俗文献讲解，通常需要一至数分钟……");
                 try {
                     await post("/api/ext/knowledge/jobs/" + job.id + "/compile");
                     await loadJobs();
@@ -156,7 +158,7 @@
                 }
             }));
         }
-        if (["pending", "failed"].includes(job.status)) {
+        if (["pending", "failed"].includes(job.status) && job.platform !== "wechat") {
             actions.append(button("复制任务给 Codex", "secondary", async function () {
                 try {
                     var result = await post("/api/ext/knowledge/jobs/" + job.id + "/handoff");
@@ -191,9 +193,13 @@
         var allReady = selected > 0 && selectedJobs.every(function (job) {
             return job.status === "preview_ready";
         });
+        var allWechat = selected > 0 && selectedJobs.every(function (job) {
+            return job.platform === "wechat";
+        });
         selectAllJobs.checked = total > 0 && selected === total;
         selectAllJobs.indeterminate = selected > 0 && selected < total;
         selectAllJobs.disabled = total === 0;
+        recleanSelected.disabled = !allWechat;
         previewSelected.disabled = !allReady;
         saveSelected.disabled = !allReady;
         deleteSelected.disabled = selected === 0;
@@ -206,6 +212,142 @@
         return Array.from(selectedIds);
     }
 
+    function safeHttpUrl(value) {
+        try {
+            var url = new URL(String(value || "").trim());
+            if (url.protocol === "http:" || url.protocol === "https:") return url.href;
+        } catch (error) {
+            return "";
+        }
+        return "";
+    }
+
+    function appendInlineMarkdown(parent, text) {
+        var pattern = /!\[([^\]]*)\]\(([^)\s]+)\)|\[([^\]]+)\]\(([^)\s]+)\)/g;
+        var cursor = 0;
+        var match;
+        while ((match = pattern.exec(text)) !== null) {
+            if (match.index > cursor) {
+                parent.append(document.createTextNode(text.slice(cursor, match.index)));
+            }
+            var address = safeHttpUrl(match[2] || match[4]);
+            if (match[1] !== undefined) {
+                if (address) {
+                    var image = document.createElement("img");
+                    image.src = address;
+                    image.alt = match[1] || "正文图片";
+                    image.loading = "lazy";
+                    image.referrerPolicy = "no-referrer";
+                    parent.append(image);
+                } else {
+                    parent.append(document.createTextNode(match[0]));
+                }
+            } else if (address) {
+                var link = document.createElement("a");
+                link.href = address;
+                link.target = "_blank";
+                link.rel = "noreferrer";
+                link.textContent = match[3];
+                parent.append(link);
+            } else {
+                parent.append(document.createTextNode(match[3]));
+            }
+            cursor = pattern.lastIndex;
+        }
+        if (cursor < text.length) {
+            parent.append(document.createTextNode(text.slice(cursor)));
+        }
+    }
+
+    function previewBody(markdown) {
+        var withoutFrontmatter = String(markdown || "").replace(
+            /^---\r?\n[\s\S]*?\r?\n---\r?\n?/,
+            ""
+        );
+        return withoutFrontmatter
+            .replace(/^#\s+[^\r\n]+\r?\n+/, "")
+            .replace(
+                /^[^\r\n]+\r?\n(?=(?:公众号|原文链接|发布日期)\s*[:：])/,
+                ""
+            )
+            .replace(
+                /^(?:(?:公众号|原文链接|发布日期)\s*[:：][^\r\n]*\r?\n?){1,3}\r?\n?/,
+                ""
+            )
+            .replace(/^状态：(?:等待用户确认|已确认)\s*$/gm, "")
+            .trim();
+    }
+
+    function renderMarkdown(markdown) {
+        var root = document.createElement("div");
+        root.className = "preview-markdown";
+        var currentList = null;
+        var currentListType = "";
+        previewBody(markdown).split(/\r?\n/).forEach(function (line) {
+            var trimmed = line.trim();
+            if (!trimmed) {
+                currentList = null;
+                currentListType = "";
+                return;
+            }
+            var heading = trimmed.match(/^(#{1,6})\s+(.+)$/);
+            var unordered = trimmed.match(/^[-*+]\s+(.+)$/);
+            var ordered = trimmed.match(/^\d+[.)]\s+(.+)$/);
+            var element;
+            if (heading) {
+                element = document.createElement("h" + Math.min(6, heading[1].length + 1));
+                appendInlineMarkdown(element, heading[2]);
+            } else if (unordered || ordered) {
+                var listType = ordered ? "ol" : "ul";
+                if (!currentList || currentListType !== listType) {
+                    currentList = document.createElement(listType);
+                    currentListType = listType;
+                    root.append(currentList);
+                }
+                element = document.createElement("li");
+                appendInlineMarkdown(element, (unordered || ordered)[1]);
+                currentList.append(element);
+                return;
+            } else if (/^>\s?/.test(trimmed)) {
+                element = document.createElement("blockquote");
+                appendInlineMarkdown(element, trimmed.replace(/^>\s?/, ""));
+            } else if (/^(?:---+|___+|\*\*\*+)$/.test(trimmed)) {
+                element = document.createElement("hr");
+            } else {
+                element = document.createElement("p");
+                appendInlineMarkdown(element, trimmed);
+            }
+            currentList = null;
+            currentListType = "";
+            root.append(element);
+        });
+        return root;
+    }
+
+    function renderPreviewDocument(result, job, index) {
+        var article = document.createElement("article");
+        article.className = "preview-document";
+        var header = document.createElement("header");
+        var heading = document.createElement("h2");
+        heading.textContent = `${index + 1}. ${job.title || "未命名内容"}`;
+        var meta = document.createElement("p");
+        meta.className = "preview-meta";
+        meta.textContent = [job.author || "未识别来源", job.published_at || "日期未识别"]
+            .join(" · ");
+        header.append(heading, meta);
+        var source = safeHttpUrl(job.source_url);
+        if (source) {
+            var sourceLink = document.createElement("a");
+            sourceLink.href = source;
+            sourceLink.target = "_blank";
+            sourceLink.rel = "noreferrer";
+            sourceLink.textContent = "打开原文";
+            header.append(sourceLink);
+        }
+        article.append(header, renderMarkdown(result.markdown));
+        return article;
+    }
+
     async function openSelectedPreviews() {
         var ids = selectedJobIds();
         if (!ids.length) return;
@@ -215,10 +357,12 @@
             var results = await Promise.all(ids.map(function (id) {
                 return window.ContentHubAPI.get("/api/ext/knowledge/jobs/" + id + "/preview");
             }));
-            previewText.textContent = results.map(function (result, index) {
-                var title = jobsById.get(ids[index]).title || "未命名内容";
-                return `# ${index + 1}. ${title}\n\n${result.markdown}`;
-            }).join("\n\n---\n\n");
+            previewContent.replaceChildren();
+            results.forEach(function (result, index) {
+                previewContent.append(
+                    renderPreviewDocument(result, jobsById.get(ids[index]), index)
+                );
+            });
             previewJobIds = ids;
             previewMessage.textContent = `正在预览 ${ids.length} 项；确认前不会改动 Obsidian。`;
             savePreview.disabled = false;
@@ -288,6 +432,25 @@
         });
         updateSelectionControls();
     });
+    recleanSelected.addEventListener("click", async function () {
+        var ids = selectedJobIds();
+        if (!ids.length) return;
+        recleanSelected.disabled = true;
+        selectionSummary.textContent = `正在按最新规则重新清洗 ${ids.length} 项`;
+        try {
+            var result = await window.ContentHubAPI.post(
+                "/api/ext/knowledge/jobs/reclean-selected",
+                { job_ids: ids }
+            );
+            await loadJobs();
+            selectionSummary.textContent = result.filtered
+                ? `重新清洗完成；${result.filtered} 项广告已移入回收站`
+                : `已重新清洗 ${result.count} 项`;
+        } catch (error) {
+            selectionSummary.textContent = "重新清洗失败：" + error.message;
+            updateSelectionControls();
+        }
+    });
     previewSelected.addEventListener("click", openSelectedPreviews);
     saveSelected.addEventListener("click", function () {
         approveSelectedJobs(selectedJobIds());
@@ -322,7 +485,7 @@
     });
     function setSkillState(enabled) {
         autoDistill = Boolean(enabled);
-        skillDefault.textContent = "默认用 Skill 提炼：" + (autoDistill ? "开启" : "关闭");
+        skillDefault.textContent = "文献自动讲解：" + (autoDistill ? "开启" : "关闭");
         skillDefault.setAttribute("aria-pressed", String(autoDistill));
     }
     window.ContentHubAPI.get("/api/ext/knowledge/settings")
@@ -331,6 +494,7 @@
     document.getElementById("closePreview").addEventListener("click", function () {
         dialog.close();
         previewJobIds = [];
+        previewContent.replaceChildren();
     });
     loadJobs();
 }());

@@ -1,16 +1,16 @@
 # 上游时效性与架构决策
 
-最近核验：2026-08-01。
+最近核验：2026-08-02。
 
 ## 结论
 
 | 组件 | 当前状态 | 在本项目中的位置 |
 | --- | --- | --- |
-| `jackwener/OpenCLI` | 活跃；本机与 npm 均为 1.8.6，仓库在 2026-07 仍有提交 | 单篇公众号链接解析，以及知乎、B站、小红书、抖音读取 |
-| `Hello-Mr-Crab/pywechat` / `pywechat127` | 包可安装，但维护文档说明 UI 树只在少数账号和设备可见 | 借鉴代码驱动 RPA 的边界；旧版兼容后端 |
+| `jackwener/OpenCLI` | 活跃；本机与 npm 均为 1.8.6，仓库在 2026-07 仍有提交 | 知乎、B站、小红书、抖音读取；不在默认微信链路中 |
+| `Hello-Mr-Crab/pywechat` / `pywechat127` | 包可安装，但当前微信 4.1.12.26 上已实测 UI 树不可见 | 仅作代码驱动 RPA 的设计参考，不是运行依赖或兼容后端 |
 | 本项目微信视觉层 | 已在微信 4.1.12.26、Windows 4K 缩放环境真实复制公开链接 | 默认公众号名称与日期发现入口 |
 
-OpenCLI 的单篇链接解析仍可用，但它的搜狗公众号搜索结果存在缺失和过时内容，不再作为默认公众号发现入口。pywechat 的原始 UI Automation 流程也不能直接作为当前微信 4.1 的默认入口。本项目只复用两者仍然可靠的边界，并自行维护视觉发现状态机。
+OpenCLI 的单篇微信链接命令可作人工诊断，但搜狗公众号搜索结果存在缺失和过时内容，Browser Bridge 也会给微信主链路引入不必要的前置条件，因此默认微信链路已改为本地 HTML 解析。pywechat 的 UI Automation 流程也不是当前微信 4.1 的备用入口。本项目只借鉴状态边界，并自行维护视觉发现与本地解析。
 
 ## OpenCLI 核验
 
@@ -19,7 +19,7 @@ OpenCLI 的单篇链接解析仍可用，但它的搜狗公众号搜索结果存
 - 更新记录：<https://github.com/jackwener/OpenCLI/blob/main/CHANGELOG.md>
 - 临时验证页问题：<https://github.com/jackwener/OpenCLI/issues/2045>
 
-`weixin search` 仍可作为诊断接口，但不能保证指定公众号的最新文章和完整日期范围。生产流程只把已经从微信复制出的真实 `mp.weixin.qq.com` URL 交给 `weixin download`。
+`weixin search` 仍可作为诊断接口，但不能保证指定公众号的最新文章和完整日期范围。默认流程对已从微信复制的真实 `mp.weixin.qq.com` URL 直接使用本地 HTML 解析器。
 
 ## pywechat 核验
 
@@ -36,11 +36,11 @@ OpenCLI 的单篇链接解析仍可用，但它的搜狗公众号搜索结果存
   → 已登录微信电脑版的本地视觉状态机
   → 精确公众号 → 文章页 → 日期归一化与筛选
   → 打开文章 → 正文日期复核 → 复制公开链接
-  → OpenCLI weixin download
+  → 本地 HTML 解析器
   → 校验正文作者
   → 过滤、去重、知识提炼、人工确认、Obsidian
 
-旧版兼容：pywechat UI Automation 收藏流程
+参考边界：pywechat 的状态分层（不执行其收藏流程）
 诊断接口：OpenCLI weixin search
 人工排障：Computer Use
 ```

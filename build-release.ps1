@@ -31,6 +31,11 @@ foreach ($Relative in $Manifest) {
     Copy-Item -LiteralPath $Source -Destination $Destination -Force
 }
 
+& python (Join-Path $ProjectRoot "release_privacy_check.py") $ResolvedPackage
+if ($LASTEXITCODE -ne 0) {
+    throw "Release privacy check failed."
+}
+
 if (Test-Path -LiteralPath $ZipPath) {
     Remove-Item -LiteralPath $ZipPath -Force
 }

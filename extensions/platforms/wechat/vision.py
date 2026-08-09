@@ -81,7 +81,7 @@ _WEEKDAYS = {
 _NON_TITLE_PATTERNS = (
     re.compile(r"^(?:阅读|赞|分享|评论)"),
     re.compile(r"^\d+$"),
-    re.compile(r"^(?:全部|贴图|文章|接收喜报|统计知识|高分文章解读)$"),
+    re.compile(r"^(?:全部|贴图|文章|视频号|接收喜报|统计知识|高分文章解读)$"),
 )
 
 
@@ -141,8 +141,15 @@ def parse_wechat_date(text: str, now: datetime | None = None) -> date | None:
 def extract_article_candidates(
     tokens: tuple[OCRToken, ...] | list[OCRToken],
     now: datetime | None = None,
+    *,
+    inherited_date: date | None = None,
 ) -> tuple[ArticleCandidate, ...]:
-    """Associate OCR title rows with the date label immediately above them."""
+    """Associate article rows with the date-group header above them.
+
+    The current WeChat profile UI renders one date header followed by one or
+    more ``title -> read-count`` rows.  A date therefore belongs to every row
+    until the next date header, rather than to only the title above it.
+    """
 
     ordered = sorted(tokens, key=lambda item: (item.rect.top, item.rect.left))
     anchors = [
@@ -150,43 +157,115 @@ def extract_article_candidates(
         for index, token in enumerate(ordered)
         if (parsed := parse_wechat_date(token.text, now)) is not None
     ]
-    candidates: list[ArticleCandidate] = []
+    groups: list[tuple[int, int, OCRToken | None, date, str]] = []
+    first_anchor_index = anchors[0][0] if anchors else len(ordered)
+    if inherited_date is not None and first_anchor_index > 0:
+        groups.append((-1, first_anchor_index, None, inherited_date, "continued"))
     for anchor_index, (token_index, date_token, published) in enumerate(anchors):
-        previous_index = anchors[anchor_index - 1][0] if anchor_index else -1
-        row_tokens = [
-            token
-            for token in ordered[previous_index + 1 : token_index]
-            if _is_title_token(token.text)
-            and abs(token.rect.left - date_token.rect.left) <= 90
-        ]
-        if not row_tokens:
+        next_index = (
+            anchors[anchor_index + 1][0]
+            if anchor_index + 1 < len(anchors)
+            else len(ordered)
+        )
+        groups.append(
+            (
+                token_index,
+                next_index,
+                date_token,
+                published,
+                _clean_text(date_token.text),
+            )
+        )
+    candidates: list[ArticleCandidate] = []
+    for token_index, next_index, date_token, published, raw_date in groups:
+        pending: list[OCRToken] = []
+        for token in ordered[token_index + 1 : next_index]:
+            if not _is_article_metadata(token.text):
+                pending.append(token)
+                continue
+            title_tokens = _title_tokens_for_row(
+                pending,
+                token,
+                expected_left=(
+                    date_token.rect.left if date_token is not None else token.rect.left
+                ),
+            )
+            pending = []
+            if not title_tokens:
+                continue
+            title = "".join(_clean_text(item.text) for item in title_tokens).strip()
+            click_rect = title_tokens[0].rect
+            for item in title_tokens[1:]:
+                click_rect = click_rect.union(item.rect)
+            candidates.append(
+                ArticleCandidate(
+                    title,
+                    published,
+                    click_rect,
+                    raw_date,
+                )
+            )
+    return tuple(candidates)
+
+
+def extract_article_tab_candidates(
+    tokens: tuple[OCRToken, ...] | list[OCRToken],
+    now: datetime | None = None,
+) -> tuple[ArticleCandidate, ...]:
+    """Read the dedicated ``文章`` tab where every row carries its own date.
+
+    Unlike the ``全部`` tab, this layout renders ``日期 + 阅读量`` beneath the
+    title of the *same* article.  Keeping the parser separate prevents a date
+    from being inherited by the following row.
+    """
+
+    ordered = sorted(tokens, key=lambda item: (item.rect.top, item.rect.left))
+    anchors: list[tuple[int, OCRToken, date]] = []
+    for index, token in enumerate(ordered):
+        published = parse_wechat_date(token.text, now)
+        if published is None or not _is_inline_article_metadata(token, ordered):
             continue
-        # WeChat renders each article as title line(s) followed by one metadata
-        # line containing the date.  Walk backwards from that date so category
-        # labels above the first article are not mistaken for its title.
-        reversed_title: list[OCRToken] = []
-        next_top = date_token.rect.top
-        for token in reversed(row_tokens):
-            vertical_gap = next_top - token.rect.bottom
-            if vertical_gap < -4:
-                continue
-            if reversed_title and vertical_gap > 24:
-                break
-            if not reversed_title and vertical_gap > 32:
-                continue
-            reversed_title.append(token)
-            next_top = token.rect.top
-        title_tokens = list(reversed(reversed_title))
+        anchors.append((index, token, published))
+
+    candidates: list[ArticleCandidate] = []
+    previous_anchor = -1
+    for token_index, metadata, published in anchors:
+        pending = ordered[previous_anchor + 1 : token_index]
+        previous_anchor = token_index
+        title_tokens = _title_tokens_for_row(
+            pending,
+            metadata,
+            expected_left=metadata.rect.left,
+        )
         if not title_tokens:
             continue
-        title = "".join(_clean_text(token.text) for token in title_tokens).strip()
+        title = "".join(_clean_text(item.text) for item in title_tokens).strip()
         click_rect = title_tokens[0].rect
-        for token in title_tokens[1:]:
-            click_rect = click_rect.union(token.rect)
+        for item in title_tokens[1:]:
+            click_rect = click_rect.union(item.rect)
         candidates.append(
-            ArticleCandidate(title, published, click_rect, _clean_text(date_token.text))
+            ArticleCandidate(
+                title=title,
+                published_date=published,
+                click_rect=click_rect,
+                raw_date=_date_label_prefix(_compact(metadata.text)),
+            )
         )
     return tuple(candidates)
+
+
+def extract_date_headers(
+    tokens: tuple[OCRToken, ...] | list[OCRToken],
+    now: datetime | None = None,
+) -> tuple[tuple[date, Rect, str], ...]:
+    """Return visible date headers in vertical order."""
+
+    headers = []
+    for token in sorted(tokens, key=lambda item: (item.rect.top, item.rect.left)):
+        parsed = parse_wechat_date(token.text, now)
+        if parsed is not None:
+            headers.append((parsed, token.rect, _clean_text(token.text)))
+    return tuple(headers)
 
 
 def select_articles(
@@ -218,8 +297,11 @@ def locate_exact_account(snapshot: VisionSnapshot, account: str) -> Rect:
     wanted = _match_key(account)
     if not wanted:
         raise ValueError("account is required")
-    top_cutoff = snapshot.bounds.top + int(snapshot.bounds.height * 0.18)
-    bottom_cutoff = snapshot.bounds.top + int(snapshot.bounds.height * 0.72)
+    # WeChat moves the first account card much closer to the header on tall or
+    # high-DPI windows.  Keep a broad main-content band and let the nearby
+    # ``公众号`` type label rank the actual card above the search field.
+    top_cutoff = snapshot.bounds.top + int(snapshot.bounds.height * 0.06)
+    bottom_cutoff = snapshot.bounds.top + int(snapshot.bounds.height * 0.85)
     right_cutoff = snapshot.bounds.left + int(snapshot.bounds.width * 0.75)
     candidates = [
         token
@@ -325,6 +407,83 @@ def _clean_text(value: str) -> str:
 def _is_title_token(value: str) -> bool:
     cleaned = _clean_text(value)
     return bool(cleaned) and not any(pattern.search(cleaned) for pattern in _NON_TITLE_PATTERNS)
+
+
+def _is_article_metadata(value: str) -> bool:
+    compact = _compact(value)
+    return bool(re.match(r"^(?:阅读|赞|分享|评论)", compact))
+
+
+def _is_inline_article_metadata(
+    date_token: OCRToken,
+    ordered: list[OCRToken],
+) -> bool:
+    compact = _compact(date_token.text)
+    if any(label in compact for label in ("阅读", "赞", "评论", "分享")):
+        return True
+    center_y = date_token.rect.center[1]
+    return any(
+        token is not date_token
+        and abs(token.rect.center[1] - center_y) <= 12
+        and 0 <= token.rect.left - date_token.rect.right <= 80
+        and _is_article_metadata(token.text)
+        for token in ordered
+    )
+
+
+def _title_tokens_for_row(
+    pending: list[OCRToken],
+    metadata: OCRToken,
+    *,
+    expected_left: int,
+) -> list[OCRToken]:
+    eligible = [
+        token
+        for token in pending
+        if token.rect.top < metadata.rect.top
+        and abs(token.rect.left - expected_left) <= 180
+        and _is_title_token(token.text)
+    ]
+    if not eligible:
+        return []
+
+    rows: list[list[OCRToken]] = []
+    for token in sorted(eligible, key=lambda item: (item.rect.top, item.rect.left)):
+        center_y = (token.rect.top + token.rect.bottom) // 2
+        if rows:
+            last = rows[-1]
+            last_center = sum(
+                (item.rect.top + item.rect.bottom) // 2 for item in last
+            ) // len(last)
+            if abs(center_y - last_center) <= 12:
+                last.append(token)
+                continue
+        rows.append([token])
+
+    selected_rows: list[list[OCRToken]] = []
+    next_top = metadata.rect.top
+    for row in reversed(rows):
+        row_top = min(item.rect.top for item in row)
+        row_bottom = max(item.rect.bottom for item in row)
+        if metadata.rect.top - row_top > 90:
+            if selected_rows:
+                break
+            continue
+        gap = next_top - row_bottom
+        if gap < -5:
+            continue
+        if gap > 36:
+            if selected_rows:
+                break
+            continue
+        selected_rows.append(row)
+        next_top = row_top
+    selected_rows.reverse()
+    return [
+        token
+        for row in selected_rows
+        for token in sorted(row, key=lambda item: item.rect.left)
+    ]
 
 
 def _match_key(value: str) -> str:

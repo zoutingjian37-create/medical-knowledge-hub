@@ -6,11 +6,12 @@ from .discovery import (
     WeChatDiscoveryError,
     WeChatUIDiscoverer,
 )
-from .parser import OpenCLIWeChatParser
+from .parser import LocalWeChatParser, OpenCLIWeChatParser
 from .pipeline import WeChatPipeline
 
 __all__ = [
     "OpenCLIWeChatParser",
+    "LocalWeChatParser",
     "OpenCLIWeChatDiscoverer",
     "WeChatAdapter",
     "WeChatDiscoveryError",

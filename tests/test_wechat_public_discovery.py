@@ -1,4 +1,9 @@
 import asyncio
+from datetime import date
+import os
+from pathlib import Path
+import tempfile
+from types import SimpleNamespace
 from unittest.mock import patch
 import unittest
 
@@ -157,6 +162,40 @@ class WeChatPipelineAccountTests(unittest.TestCase):
 
 
 class WeChatDiscoveryRouteTests(unittest.TestCase):
+    def test_discovery_failure_returns_structured_failed_step(self):
+        from fastapi.testclient import TestClient
+        from app import app
+        from extensions.platforms.wechat.discovery import WeChatDiscoveryError
+
+        class Discoverer:
+            def discover(self, accounts, per_account=10, date_from=None, date_to=None):
+                raise WeChatDiscoveryError(
+                    "复制链接菜单未出现",
+                    step="copy_link",
+                    retry_from="article_list",
+                    progress_kept=True,
+                )
+
+        with (
+            patch("routes_ext.platforms.WeChatUIDiscoverer", return_value=Discoverer()),
+            TestClient(app) as client,
+        ):
+            response = client.post(
+                "/api/ext/platforms/wechat/discover",
+                json={"accounts": ["示例公众号"], "per_account": 1},
+            )
+
+        self.assertEqual(502, response.status_code)
+        self.assertEqual(
+            {
+                "message": "复制链接菜单未出现",
+                "failed_step": "copy_link",
+                "retry_from": "article_list",
+                "progress_kept": True,
+            },
+            response.json()["detail"],
+        )
+
     def test_visual_desktop_is_the_default_discovery_mode(self):
         from fastapi.testclient import TestClient
         from app import app
@@ -179,7 +218,10 @@ class WeChatDiscoveryRouteTests(unittest.TestCase):
             )
 
         self.assertEqual(200, response.status_code)
-        self.assertEqual({"links": [PUBLIC_URL], "mode": "wechat_ui"}, response.json())
+        self.assertEqual(
+            {"links": [PUBLIC_URL], "source": "desktop_wechat"},
+            response.json(),
+        )
 
     def test_explicit_date_range_is_forwarded_to_desktop_discovery(self):
         from fastapi.testclient import TestClient
@@ -205,16 +247,96 @@ class WeChatDiscoveryRouteTests(unittest.TestCase):
                 json={
                     "accounts": ["示例医学公众号"],
                     "per_account": 1,
-                    "mode": "wechat_ui",
                     "date_from": "2026-07-30",
                     "date_to": "2026-07-31",
                 },
             )
 
         self.assertEqual(200, response.status_code)
-        self.assertEqual("wechat_ui", response.json()["mode"])
+        self.assertEqual("desktop_wechat", response.json()["source"])
         self.assertEqual("2026-07-30", discoverer.date_from.isoformat())
         self.assertEqual("2026-07-31", discoverer.date_to.isoformat())
+
+    def test_partial_checkpoint_result_is_not_reported_as_complete(self):
+        from fastapi.testclient import TestClient
+        from app import app
+
+        class Discoverer:
+            last_status = SimpleNamespace(
+                complete=False,
+                attempts=3,
+                incomplete_accounts=("示例医学公众号",),
+                resume_dates={"示例医学公众号": "2026-07-23"},
+                warning="微信界面连续 3 次未恢复；已保存成功链接，可从检查点继续。",
+            )
+
+            def discover(self, accounts, per_account=10, date_from=None, date_to=None):
+                return (PUBLIC_URL,)
+
+        with (
+            patch("routes_ext.platforms.WeChatUIDiscoverer", return_value=Discoverer()),
+            TestClient(app) as client,
+        ):
+            response = client.post(
+                "/api/ext/platforms/wechat/discover",
+                json={"accounts": ["示例医学公众号"], "per_account": 5},
+            )
+
+        self.assertEqual(206, response.status_code)
+        self.assertFalse(response.json()["complete"])
+        self.assertEqual(
+            {"示例医学公众号": "2026-07-23"},
+            response.json()["resume_dates"],
+        )
+        self.assertEqual([PUBLIC_URL], response.json()["links"])
+
+    def test_collect_aggregates_failed_accounts_even_if_last_status_is_complete(self):
+        from fastapi.testclient import TestClient
+        from app import app
+        from extensions.processing.job_queue import QueueResult
+
+        async def run_pipeline(*args, **kwargs):
+            return (
+                QueueResult(
+                    False,
+                    "discovery_failed",
+                    None,
+                    account="失败公众号",
+                    failed_step="article_list",
+                    retry_from="article_list",
+                    progress_kept=True,
+                    error="文章列表被遮挡",
+                ),
+                QueueResult(False, "duplicate", None, account="成功公众号"),
+            )
+
+        discoverer = SimpleNamespace(
+            last_status=SimpleNamespace(complete=True, attempts=1)
+        )
+        with (
+            tempfile.TemporaryDirectory() as temp_dir,
+            patch.dict(
+                os.environ,
+                {
+                    "CONTENT_HUB_CACHE_DIR": str(Path(temp_dir) / "cache"),
+                    "CONTENT_HUB_STATE_DIR": str(Path(temp_dir) / "state"),
+                },
+            ),
+            patch("routes_ext.platforms.WeChatUIDiscoverer", return_value=discoverer),
+            patch("routes_ext.platforms.WeChatPipeline.run", new=run_pipeline),
+            TestClient(app) as client,
+        ):
+            response = client.post(
+                "/api/ext/platforms/wechat/collect",
+                json={"accounts": ["失败公众号", "成功公众号"], "per_account": 5},
+            )
+
+        self.assertEqual(206, response.status_code)
+        self.assertFalse(response.json()["complete"])
+        self.assertEqual(["失败公众号"], response.json()["incomplete_accounts"])
+        self.assertEqual("article_list", response.json()["failed_step"])
+        self.assertTrue(response.json()["progress_kept"])
+        self.assertEqual("失败公众号", response.json()["results"][0]["account"])
 
     def test_open_source_page_has_no_personal_subscription_defaults(self):
         from fastapi.testclient import TestClient
@@ -224,10 +346,146 @@ class WeChatDiscoveryRouteTests(unittest.TestCase):
             html = client.get("/wechat-collect.html").text
 
         self.assertIn("输入公众号名称和日期范围", html)
-        self.assertIn("mode: \"wechat_ui\"", html)
+        self.assertIn("自动重试", html)
+        self.assertIn("data.complete === false", html)
+        self.assertNotIn("mode:", html)
         self.assertNotIn("示例医学统计号", html)
         self.assertNotIn("示例公共数据库号", html)
         self.assertNotIn("示例论文分析号", html)
+
+
+class WeChatCheckpointResumeTests(unittest.TestCase):
+    def _marker(self, account, published, url):
+        from extensions.platforms.wechat.vision import article_dedup_marker
+
+        return article_dedup_marker(account, published, url)
+
+    def test_transient_failure_resumes_from_oldest_checkpoint_date(self):
+        from extensions.platforms.wechat.desktop_vision import WeChatDiscoveryIndex
+        from extensions.platforms.wechat.discovery import WeChatUIDiscoverer
+
+        account = "示例医学公众号"
+        second = "https://mp.weixin.qq.com/s/second-article"
+        third = "https://mp.weixin.qq.com/s/third-article"
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            index = WeChatDiscoveryIndex(Path(temp_dir) / "wechat-index.json")
+
+            class Backend:
+                def __init__(self):
+                    self.index = index
+                    self.calls = []
+
+                def collect_links(
+                    self,
+                    requested_account,
+                    limit,
+                    *,
+                    date_from=None,
+                    date_to=None,
+                    exclude_urls=(),
+                ):
+                    self.calls.append((date_from, date_to, tuple(exclude_urls), limit))
+                    if len(self.calls) == 1:
+                        index.add(self_marker(account, date(2026, 8, 2), PUBLIC_URL))
+                        index.add(self_marker(account, date(2026, 8, 1), second))
+                        raise RuntimeError("temporary WeChat repaint timeout")
+                    index.add(self_marker(account, date(2026, 7, 31), third))
+                    return [third]
+
+            self_marker = self._marker
+            backend = Backend()
+            discoverer = WeChatUIDiscoverer(backend=backend, max_attempts=2)
+
+            links = discoverer.discover(
+                [account],
+                per_account=10,
+                date_from=date(2026, 7, 31),
+                date_to=date(2026, 8, 2),
+            )
+
+        self.assertEqual((PUBLIC_URL, second, third), links)
+        self.assertEqual(date(2026, 8, 1), backend.calls[1][1])
+        self.assertEqual((PUBLIC_URL, second), backend.calls[1][2])
+        self.assertTrue(discoverer.last_status.complete)
+        self.assertEqual(2, discoverer.last_status.attempts)
+
+    def test_resume_includes_checkpoint_day_without_counting_existing_link(self):
+        from extensions.platforms.wechat.desktop_vision import WeChatDiscoveryIndex
+        from extensions.platforms.wechat.discovery import WeChatUIDiscoverer
+
+        account = "示例医学公众号"
+        same_day_second = "https://mp.weixin.qq.com/s/same-day-second"
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            index = WeChatDiscoveryIndex(Path(temp_dir) / "wechat-index.json")
+
+            class Backend:
+                def __init__(self):
+                    self.index = index
+                    self.calls = 0
+
+                def collect_links(self, requested_account, limit, **options):
+                    self.calls += 1
+                    if self.calls == 1:
+                        index.add(self_marker(account, date(2026, 8, 1), PUBLIC_URL))
+                        raise RuntimeError("article tab repainted")
+                    self.assert_resume(options)
+                    return [same_day_second]
+
+                def assert_resume(self, options):
+                    if options["date_to"] != date(2026, 8, 1):
+                        raise AssertionError("resume must include the checkpoint day")
+                    if PUBLIC_URL not in options["exclude_urls"]:
+                        raise AssertionError("checkpoint link must not consume the limit")
+
+            self_marker = self._marker
+            backend = Backend()
+            discoverer = WeChatUIDiscoverer(backend=backend, max_attempts=2)
+
+            links = discoverer.discover(
+                [account],
+                per_account=2,
+                date_from=date(2026, 8, 1),
+                date_to=date(2026, 8, 1),
+            )
+
+        self.assertEqual((PUBLIC_URL, same_day_second), links)
+
+    def test_retry_exhaustion_returns_partial_links_with_explicit_status(self):
+        from extensions.platforms.wechat.desktop_vision import WeChatDiscoveryIndex
+        from extensions.platforms.wechat.discovery import WeChatUIDiscoverer
+
+        account = "示例医学公众号"
+        with tempfile.TemporaryDirectory() as temp_dir:
+            index = WeChatDiscoveryIndex(Path(temp_dir) / "wechat-index.json")
+
+            class Backend:
+                def __init__(self):
+                    self.index = index
+                    self.calls = 0
+
+                def collect_links(self, requested_account, limit, **options):
+                    self.calls += 1
+                    if self.calls == 1:
+                        index.add(self_marker(account, date(2026, 8, 1), PUBLIC_URL))
+                    raise RuntimeError("WeChat UI state did not become ready")
+
+            self_marker = self._marker
+            discoverer = WeChatUIDiscoverer(backend=Backend(), max_attempts=2)
+
+            links = discoverer.discover(
+                [account],
+                per_account=5,
+                date_from=date(2026, 7, 1),
+                date_to=date(2026, 8, 2),
+            )
+
+        self.assertEqual((PUBLIC_URL,), links)
+        self.assertFalse(discoverer.last_status.complete)
+        self.assertEqual((account,), discoverer.last_status.incomplete_accounts)
+        self.assertEqual("2026-08-01", discoverer.last_status.resume_dates[account])
+        self.assertIn("2", discoverer.last_status.warning)
 
 
 if __name__ == "__main__":

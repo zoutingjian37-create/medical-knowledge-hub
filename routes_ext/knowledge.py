@@ -40,6 +40,8 @@ async def list_knowledge_jobs(status: str | None = Query(default=None)):
     compiler = KnowledgeCompiler()
     compiler.purge_expired_trash()
     jobs = compiler.store.list(status=status)
+    if status is None:
+        jobs = tuple(job for job in jobs if job.status != "approved")
     return {"jobs": [_public_job(job) for job in jobs]}
 
 
@@ -128,6 +130,28 @@ async def approve_selected_knowledge_jobs(request: TrashSelectionRequest):
     return {
         "count": len(results),
         "knowledge_cards": [str(result.knowledge_card) for result in results],
+    }
+
+
+@router.post(
+    "/knowledge/jobs/reclean-selected",
+    summary="Rebuild selected WeChat previews with current cleaning rules",
+)
+async def reclean_selected_knowledge_jobs(request: TrashSelectionRequest):
+    compiler = KnowledgeCompiler()
+    try:
+        jobs = compiler.reclean_many(request.job_ids)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except PreviewValidationError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return {
+        "jobs": [_public_job(job) for job in jobs],
+        "count": len(jobs),
+        "filtered": sum(
+            job.status == "trashed" and job.error == "advertisement"
+            for job in jobs
+        ),
     }
 
 

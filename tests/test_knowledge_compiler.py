@@ -27,38 +27,29 @@ wiki_updates: []
 
 # 童年经历与成年心血管病
 
-## 核心结论
+## 为什么值得看
 童年不利经历可能通过成年抑郁影响心血管健康。
 
-## 临床问题与 PICO/PECO
+## 研究问题
 中老年人群中的童年暴露与心血管结局。
 
-## 数据与变量
+## 研究怎么做
 CHARLS、童年暴露、抑郁和心血管结局。
 
-## 方法—问题映射
+## 统计方法为什么这样选
 纵向生存分析与中介分析。
 
-## 主要结论
+## 主要发现
 关联和部分中介路径成立。
 
-## 统计方法创新
-方法应用创新：把中介分析用于生命周期问题。
-
-## 其他创新点
+## 这篇研究的新意
 生命周期暴露与心理路径的联合问题设计。
 
-## 迁移方向
+## 对科研设计的启发
 可迁移至其他早期暴露和慢性病结局。
 
-## 潜在选题
-灵感候选：睡眠是否参与相似路径。
-
-## 证据边界
+## 局限与证据边界
 观察性关联不能证明因果关系。
-
-## Wiki 更新建议
-更新 CHARLS 与因果中介分析。
 
 ## 来源
 {source_url}
@@ -86,6 +77,7 @@ class KnowledgeCompilerTests(unittest.TestCase):
             document,
             self.cache.put(job_id, document.markdown),
             job_id=job_id,
+            platform="literature",
         )
 
     def tearDown(self):
@@ -96,21 +88,22 @@ class KnowledgeCompilerTests(unittest.TestCase):
 
         return KnowledgeCompiler(store=self.store, cache=self.cache)
 
-    def test_wechat_skill_output_contract_matches_preview_validator(self):
-        from extensions.processing.compiler import REQUIRED_SECTIONS
+    def test_literature_skill_output_contract_matches_preview_validator(self):
+        from extensions.processing.compiler import LITERATURE_REQUIRED_SECTIONS
 
         contract = (
             Path(__file__).parents[1]
             / "skills"
-            / "distill-medical-wechat"
+            / "distill-medical-literature"
             / "references"
             / "output-contract.md"
         ).read_text("utf-8")
 
-        for section in REQUIRED_SECTIONS:
+        for section in LITERATURE_REQUIRED_SECTIONS:
             self.assertIn(f"## {section}", contract)
 
     def test_handoff_references_source_without_copying_article_body(self):
+        self.store.update(self.job.id, platform="wechat")
         result = self._compiler().prepare_handoff(self.job.id)
 
         handoff = result.handoff_path.read_text("utf-8")
@@ -518,10 +511,46 @@ class KnowledgeCompilerTests(unittest.TestCase):
                 "/api/ext/knowledge/jobs/approve-selected",
                 json={"job_ids": [self.job.id]},
             )
+            active = client.get("/api/ext/knowledge/jobs")
 
         self.assertEqual(200, response.status_code)
         self.assertEqual(1, response.json()["count"])
         self.assertEqual("approved", self.store.get(self.job.id).status)
+        self.assertEqual([], active.json()["jobs"])
+
+    def test_api_recleans_selected_wechat_previews_and_filters_advertisements(self):
+        self.store.update(
+            self.job.id,
+            platform="wechat",
+            title="总IF=11.8！学员一周接收五篇SCI喜报",
+        )
+        Path(self.job.cache_path).write_text(
+            "学员案例\n\n恭喜学员录用。\n\n1V1 SCI 指导咨询。",
+            "utf-8",
+        )
+        from fastapi.testclient import TestClient
+        from app import app
+
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "CONTENT_HUB_CACHE_DIR": str(self.cache.root),
+                    "CONTENT_HUB_STATE_DIR": str(self.store.root),
+                },
+            ),
+            TestClient(app) as client,
+        ):
+            response = client.post(
+                "/api/ext/knowledge/jobs/reclean-selected",
+                json={"job_ids": [self.job.id]},
+            )
+
+        self.assertEqual(200, response.status_code)
+        self.assertEqual(1, response.json()["count"])
+        self.assertEqual(1, response.json()["filtered"])
+        self.assertEqual("trashed", self.store.get(self.job.id).status)
+        self.assertEqual("advertisement", self.store.get(self.job.id).error)
 
     def test_api_imports_preview_created_at_handoff_output_path(self):
         handoff = self._compiler().prepare_handoff(self.job.id)
@@ -594,7 +623,7 @@ class KnowledgeCompilerTests(unittest.TestCase):
             )
 
         self.assertEqual(200, response.status_code)
-        self.assertIn("统计方法创新", response.json()["markdown"])
+        self.assertIn("统计方法为什么这样选", response.json()["markdown"])
         self.assertNotIn("cache_path", response.text)
 
 

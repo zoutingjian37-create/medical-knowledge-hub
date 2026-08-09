@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass, replace
 
-from .archive import clean_markdown, is_advertisement_title
+from .archive import clean_markdown, is_advertisement_document
 from .documents import MarkdownDocument
 from .job_store import KnowledgeJob, KnowledgeJobStore
 from .source_cache import SourceCache
@@ -13,6 +13,11 @@ class QueueResult:
     queued: bool
     reason: str
     job: KnowledgeJob | None
+    account: str = ""
+    failed_step: str = ""
+    retry_from: str = ""
+    progress_kept: bool = False
+    error: str = ""
 
 
 class KnowledgeJobQueue:
@@ -29,7 +34,7 @@ class KnowledgeJobQueue:
         document: MarkdownDocument,
         platform: str = "wechat",
     ) -> QueueResult:
-        if is_advertisement_title(document.title):
+        if is_advertisement_document(document.title, document.markdown):
             return QueueResult(False, "advertisement", None)
 
         existing = self.store.find_by_source(document.source_url)

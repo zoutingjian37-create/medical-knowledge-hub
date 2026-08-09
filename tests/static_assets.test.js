@@ -98,6 +98,10 @@ test("manual inbox queues any supported public link for knowledge distillation",
     assert.match(html, /提取并生成预览/);
     assert.match(html, /\/compile/);
     assert.match(html, /\/review\.html/);
+    assert.match(html, /response\.reason === "advertisement"/);
+    assert.match(html, /已过滤推广内容/);
+    assert.match(html, /response\.reason === "duplicate"/);
+    assert.match(html, /已处理过这篇内容/);
     assert.doesNotMatch(html, /下载 \.md|复制 Markdown/);
     assert.doesNotMatch(html, /\/api\/login|searchbiz|appmsgpublish/);
     assert.doesNotMatch(html, /name=["'](?:cookie|token)|Authorization|Bearer/i);
@@ -137,9 +141,18 @@ test("secondary pages use concise descriptions", () => {
     assert.match(platforms, /<h1>平台状态<\/h1>/);
     assert.match(wechat, /<h1>公众号文章<\/h1>/);
     assert.match(wechat, /发布日期/);
-    assert.match(wechat, /具体年月日/);
-    assert.match(wechat, /mode: "wechat_ui"/);
+    assert.match(wechat, /aria-label="开始日期"/);
+    assert.match(wechat, /aria-label="结束日期"/);
+    assert.doesNotMatch(wechat, /星期几.*(?:转换|解释)/s);
+    assert.doesNotMatch(wechat, /最近\s*1-6\s*天/);
+    assert.doesNotMatch(wechat, /mode: "wechat_ui"/);
+    assert.match(wechat, /无需打开浏览器或连接 OpenCLI 扩展/);
     assert.match(wechat, /Asia\/Shanghai/);
+    assert.match(wechat, /id="wechatIssueDialog"/);
+    assert.match(wechat, /failed_step/);
+    assert.match(wechat, /retry_from/);
+    assert.match(wechat, /showModal/);
+    assert.match(wechat, /复制公开链接/);
 });
 
 test("wechat and literature subscriptions are separate operational modules", () => {
@@ -153,7 +166,14 @@ test("wechat and literature subscriptions are separate operational modules", () 
     assert.match(wechat, /每行一个公众号/);
     assert.match(wechat, /id="editWechatAccounts"[^>]*>修改</);
     assert.match(wechat, /id="saveWechatAccounts"[^>]*>保存</);
+    assert.match(wechat, /id="wechatDailyLimit"/);
+    assert.match(wechat, /每个公众号文章上限/);
     assert.match(wechat, /\/api\/ext\/subscriptions\/wechat-accounts/);
+    assert.match(wechat, /daily_limit:\s*Number\(wechatDailyLimit\.value/);
+    assert.match(wechat, /id="wechatRunIssue"/);
+    assert.match(wechat, /从检查点继续/);
+    assert.match(wechat, /subscription_id:\s*run\.subscription_id/);
+    assert.match(wechat, /wechatRunIssue\.showModal\(\)/);
     assert.match(wechat, /scope:\s*['"]wechat['"]/);
     assert.doesNotMatch(wechat, /Zotero|导出个人配置|导入个人配置|RSS \/ Atom/);
 
@@ -189,10 +209,17 @@ test("review page exposes the complete review-gated workflow", () => {
     assert.doesNotMatch(html, /trashMode|trashSettings|showTrash/);
     assert.match(html, /id="selectAllJobs"/);
     assert.match(html, /id="previewSelected"[^>]*disabled/);
+    assert.match(html, /id="recleanSelected"[^>]*disabled/);
     assert.match(html, /id="saveSelected"[^>]*disabled/);
     assert.match(html, /id="deleteSelected"[^>]*disabled/);
     assert.match(html, /\/api\/ext\/knowledge\/jobs\/approve-selected/);
     assert.match(html, /\/api\/ext\/knowledge\/jobs\/trash-selected/);
+    assert.match(html, /\/api\/ext\/knowledge\/jobs\/reclean-selected/);
+    assert.match(html, /id="previewContent"[^>]*class="dialog-body preview-content"/);
+    assert.doesNotMatch(html, /<pre id="previewText"/);
+    assert.match(html, /document\.createElement\("img"\)/);
+    assert.match(html, /url\.protocol === "http:" \|\| url\.protocol === "https:"/);
+    assert.doesNotMatch(html, /previewContent\.innerHTML\s*=/);
     assert.match(trash, /<h1>回收站<\/h1>/);
     assert.match(trash, /恢复所选/);
     assert.match(trash, /彻底清理所选/);
@@ -205,15 +232,19 @@ test("review page exposes the complete review-gated workflow", () => {
     assert.match(trash, /\/api\/ext\/knowledge\/trash\/delete-selected/);
     assert.match(trash, /\/api\/ext\/knowledge\/trash\/restore-selected/);
     assert.doesNotMatch(trash, /onclick="(?:restoreJob|deleteJob)/);
-    assert.match(html, /默认用 Skill 提炼/);
+    assert.match(html, /文献自动讲解：开启/);
     assert.match(html, /\/api\/ext\/knowledge\/settings/);
     assert.match(inbox, /\/api\/ext\/knowledge\/settings/);
-    assert.match(wechatCollect, /\/api\/ext\/knowledge\/settings/);
-    assert.match(wechatCollect, /\/compile/);
+    assert.doesNotMatch(wechatCollect, /\/api\/ext\/knowledge\/settings/);
+    assert.doesNotMatch(wechatCollect, /\/compile/);
+    assert.match(wechatCollect, /自动重试/);
+    assert.match(wechatCollect, /data\.complete === false/);
+    assert.match(wechatCollect, /item\.title \|\| item\.account \|\| item\.source_url/);
+    assert.match(wechatCollect, /item\.failed_step/);
     assert.match(html, /id="savePreview"/);
     assert.match(html, /确认保存到 Obsidian/);
     assert.match(html, /savePreview\.addEventListener/);
     assert.match(html, /确认保存/);
-    assert.match(html, /自动提取重点/);
+    assert.match(html, /生成文献讲解/);
     assert.doesNotMatch(html, /cache_path|wechat_cookie|wechat_token/i);
 });

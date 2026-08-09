@@ -40,6 +40,17 @@
     .result-list a:hover{text-decoration:underline;text-underline-offset:3px}
     .result-list span{color:var(--ink-soft);font-size:13px;line-height:1.5}
     .empty-result{padding:20px 22px;border-top:1px solid var(--line);color:var(--ink-soft);font-size:13px}
+    .issue-dialog{width:min(520px,calc(100vw - 32px));padding:0;border:1px solid var(--line);border-radius:18px;background:var(--surface);color:var(--ink);box-shadow:0 24px 70px rgba(15,35,55,.2)}
+    .issue-dialog::backdrop{background:rgba(15,35,55,.34);backdrop-filter:blur(3px)}
+    .issue-dialog__body{padding:26px}
+    .issue-dialog h2{margin:0 0 8px;font-size:22px}
+    .issue-dialog__message{margin:0 0 20px;color:var(--ink-soft);line-height:1.6}
+    .issue-facts{display:grid;gap:0;margin:0;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+    .issue-facts div{display:grid;grid-template-columns:110px 1fr;gap:16px;padding:12px 14px;border-bottom:1px solid var(--line)}
+    .issue-facts div:last-child{border-bottom:0}
+    .issue-facts dt{font-weight:680}.issue-facts dd{margin:0;color:var(--ink-soft)}
+    .issue-dialog__actions{display:flex;justify-content:flex-end;gap:10px;margin-top:22px}
+    .issue-dialog__actions button{min-height:40px;border:0;padding:0 16px;cursor:pointer}
     @media(max-width:1080px){.wechat-layout{grid-template-columns:1fr}.support-panel{order:2}}
     @media(max-width:680px){.wechat-form{padding:20px 18px}.field-grid,.date-grid{grid-template-columns:1fr}.field--full{grid-column:auto}.form-actions{align-items:stretch;flex-direction:column}.form-actions button,.form-actions .review-link{width:100%;margin:0;text-align:center;line-height:42px}.support-list{padding-inline:18px}.support-list li{grid-template-columns:1fr;gap:5px}.run-status{padding:17px 18px}.result-list li{padding-inline:18px}}
   </style>
@@ -49,13 +60,13 @@
     <header class="workspace-header">
       <div>
         <h1>公众号文章</h1>
-        <p>输入公众号名称和日期范围。程序操作已登录的微信电脑版，复制公开文章链接，再进入提炼与确认流程。</p>
+        <p>输入公众号名称和日期范围。程序操作已登录的微信电脑版，复制公开文章链接，去广告并生成确认预览。</p>
       </div>
     </header>
 
     <div class="workspace-note" role="note">
       <strong>运行前准备</strong>
-      <span>请先登录微信电脑版。运行期间不要操作微信窗口；程序不会读取聊天记录、Cookie、Token 或账号密码。</span>
+      <span>只需先登录微信电脑版，无需打开浏览器或连接 OpenCLI 扩展。遇到界面重绘或短暂超时，后台会自动重开页面并从磁盘检查点自动重试；程序不会读取聊天记录、Cookie、Token 或账号密码。</span>
     </div>
 
     <div class="wechat-layout">
@@ -79,7 +90,7 @@
                 <input id="dateFrom" type="date" aria-label="开始日期">
                 <input id="dateTo" type="date" aria-label="结束日期">
               </div>
-              <small>“星期几”会转换为最近一周内的具体年月日。</small>
+              <small>按文章发布日期筛选。</small>
             </div>
             <div class="field">
               <label for="perAccount">每个公众号最多处理</label>
@@ -89,8 +100,8 @@
           </div>
           <div class="form-actions">
             <button class="secondary" type="button" id="discover">只查看公开链接</button>
-            <button type="submit" id="collect">生成待提炼任务</button>
-            <a class="review-link" href="/review.html">查看提炼预览</a>
+            <button type="submit" id="collect">生成清洗预览</button>
+            <a class="review-link" href="/review.html">查看文章预览</a>
           </div>
         </form>
       </section>
@@ -99,13 +110,13 @@
         <div class="section-heading">
           <div>
             <h2 id="rules-title">日期与去重</h2>
-            <p>列表日期先归一化，文章页完整日期再复核。</p>
+            <p>按发布日期筛选，并避免重复保存同一篇文章。</p>
           </div>
         </div>
         <ul class="support-list">
-          <li><strong>今天、昨天</strong><span>按北京时间转换为具体日期。</span></li>
-          <li><strong>星期几</strong><span>解释为最近 1-6 天内对应的日期。</span></li>
-          <li><strong>月日</strong><span>自动补全年份，并处理跨年。</span></li>
+          <li><strong>日期范围</strong><span>只处理落在所选日期内的文章。</span></li>
+          <li><strong>数量上限</strong><span>限制每个公众号单次处理的文章数。</span></li>
+          <li><strong>来源复核</strong><span>打开文章后再次核对公众号和发布日期。</span></li>
           <li><strong>去重标记</strong><span>公众号、具体发布日期和规范化链接共同标记一篇文章。</span></li>
         </ul>
       </aside>
@@ -122,6 +133,22 @@
     </section>
   </main>
 
+  <dialog class="issue-dialog" id="wechatIssueDialog" aria-labelledby="wechatIssueTitle">
+    <div class="issue-dialog__body">
+      <h2 id="wechatIssueTitle">公众号采集中断</h2>
+      <p class="issue-dialog__message" id="wechatIssueMessage"></p>
+      <dl class="issue-facts">
+        <div><dt>出错步骤</dt><dd id="wechatIssueStep">—</dd></div>
+        <div><dt>已保留进度</dt><dd id="wechatIssueProgress">—</dd></div>
+        <div><dt>恢复位置</dt><dd id="wechatIssueRetry">—</dd></div>
+      </dl>
+      <div class="issue-dialog__actions">
+        <button class="secondary" type="button" id="closeWechatIssue">关闭</button>
+        <button type="button" id="continueWechatIssue">继续处理</button>
+      </div>
+    </div>
+  </dialog>
+
   <script src="/static/js/api-client.js"></script>
   <script src="/static/js/app-shell.js"></script>
   <script>
@@ -134,6 +161,23 @@
       var title = document.getElementById("run-title");
       var message = document.getElementById("runMessage");
       var list = document.getElementById("resultList");
+      var issueDialog = document.getElementById("wechatIssueDialog");
+      var lastRunPath = "";
+      var stepLabels = {
+        search_account: "搜索公众号",
+        open_profile: "打开公众号主页",
+        select_article_tab: "进入文章栏",
+        article_list: "读取文章列表",
+        navigate_dates: "定位发布日期",
+        open_article: "打开文章",
+        copy_link: "复制公开链接",
+        return_to_list: "返回文章列表",
+        unknown: "未能识别的界面步骤"
+      };
+      var retryLabels = {
+        article_list: "返回当前公众号的文章列表后重试同一篇",
+        account_search: "当前公众号页面已丢失，需要重新搜索该公众号"
+      };
       var beijingParts = new Intl.DateTimeFormat("en-GB", {
         timeZone: "Asia/Shanghai",
         year: "numeric",
@@ -152,8 +196,7 @@
           .split(/\r?\n/).map(function (value) { return value.trim(); }).filter(Boolean);
         var payload = {
           accounts: accounts,
-          per_account: Number(document.getElementById("perAccount").value || 5),
-          mode: "wechat_ui"
+          per_account: Number(document.getElementById("perAccount").value || 5)
         };
         var dateFrom = document.getElementById("dateFrom").value;
         var dateTo = document.getElementById("dateTo").value;
@@ -200,7 +243,19 @@
         return "";
       }
 
+      function showIssue(detail, path) {
+        detail = detail && typeof detail === "object" ? detail : { message: String(detail || "未知错误") };
+        lastRunPath = path || lastRunPath;
+        document.getElementById("wechatIssueMessage").textContent = detail.message || detail.warning || "微信界面未完成当前步骤。";
+        document.getElementById("wechatIssueStep").textContent = stepLabels[detail.failed_step] || detail.failed_step || stepLabels.unknown;
+        document.getElementById("wechatIssueProgress").textContent = detail.progress_kept ? "已取得的链接和检查点已保存" : "当前步骤尚未产生可保存结果";
+        document.getElementById("wechatIssueRetry").textContent = retryLabels[detail.retry_from] || "从最近的磁盘检查点继续";
+        if (typeof issueDialog.showModal === "function") issueDialog.showModal();
+        else issueDialog.setAttribute("open", "");
+      }
+
       async function run(path) {
+        lastRunPath = path;
         var payload = requestPayload();
         var problem = validate(payload);
         if (problem) {
@@ -217,33 +272,47 @@
             body: JSON.stringify(payload)
           });
           var data = await response.json();
-          if (!response.ok) throw new Error(data.detail || "公众号文章查找失败，请确认微信已登录后重试。");
+          if (!response.ok) {
+            var detail = data.detail && typeof data.detail === "object" ? data.detail : { message: data.detail || "公众号文章查找失败，请确认微信已登录后重试。" };
+            showIssue(detail, path);
+            throw { message: detail.message, handled: true };
+          }
           if (Array.isArray(data.links)) {
             data.links.forEach(function (url) { appendResult(url, "公开文章链接", url); });
+            if (data.complete === false) {
+              showIssue(data, path);
+              setState("error", "已保存部分链接", data.warning + " 再次点击本按钮会从 " + Object.values(data.resume_dates || {}).join("、") + " 继续，不会重采已保存链接。");
+              return;
+            }
             setState("success", "查找完成", data.links.length ? "已按具体发布日期筛选并去重。" : "指定日期范围内没有发现新文章。");
             return;
           }
           var results = Array.isArray(data.results) ? data.results : [];
-          try {
-            var settings = await window.ContentHubAPI.get("/api/ext/knowledge/settings");
-            if (settings.auto_distill) {
-              var queued = results.filter(function (item) { return item.queued && item.job_id; });
-              for (var index = 0; index < queued.length; index += 1) {
-                setState("running", "正在提炼公众号文章", queued[index].title || queued[index].job_id);
-                await window.ContentHubAPI.post("/api/ext/knowledge/jobs/" + queued[index].job_id + "/compile", {});
-                queued[index].status = "preview_ready";
-              }
-            }
-          } catch (compileError) {
-            results.forEach(function (item) {
-              if (item.queued) item.reason = "已加入待提炼任务，可稍后重试自动提炼";
-            });
-          }
           results.forEach(function (item) {
-            var detail = item.status === "preview_ready" ? "提炼预览已生成，等待确认" : item.status === "pending" ? "已加入待提炼任务" : item.reason || item.status;
-            appendResult(item.title || item.source_url || "未命名文章", detail, item.source_url);
+            var detailParts = [
+              item.status === "preview_ready"
+                ? "去广告预览已生成，等待确认"
+                : item.status === "pending"
+                  ? "已加入待清洗任务"
+                  : item.reason || item.status
+            ];
+            if (item.account) detailParts.push("公众号：" + item.account);
+            if (item.failed_step) detailParts.push("失败步骤：" + (stepLabels[item.failed_step] || item.failed_step));
+            if (item.retry_from) detailParts.push("恢复位置：" + (retryLabels[item.retry_from] || item.retry_from));
+            if (item.progress_kept) detailParts.push("已保留取得的链接和检查点");
+            if (item.error) detailParts.push(item.error);
+            appendResult(
+              item.title || item.account || item.source_url || "未命名文章",
+              detailParts.filter(Boolean).join(" · "),
+              item.source_url
+            );
           });
-          setState("success", "任务已生成", results.length ? "文章已进入待提炼流程。完成后可在“查看提炼预览”中确认。" : "指定日期范围内没有需要处理的新文章。");
+          if (data.complete === false) {
+            showIssue(data, path);
+            setState("error", "部分文章已生成预览", data.warning + " 已完成的预览不会丢失；再次点击本按钮将从检查点继续。");
+            return;
+          }
+          setState("success", "预览已生成", results.length ? "文章已完成代码清洗。可在“查看文章预览”中确认保存。" : "指定日期范围内没有需要处理的新文章。");
         } catch (error) {
           setState("error", "未完成公众号查找", error.message || "请确认微信已登录并保持窗口可见，然后重试。");
         } finally {
@@ -252,6 +321,11 @@
       }
 
       discoverButton.addEventListener("click", function () { run("/api/ext/platforms/wechat/discover"); });
+      document.getElementById("closeWechatIssue").addEventListener("click", function () { issueDialog.close(); });
+      document.getElementById("continueWechatIssue").addEventListener("click", function () {
+        issueDialog.close();
+        if (lastRunPath) run(lastRunPath);
+      });
       form.addEventListener("submit", function (event) {
         event.preventDefault();
         run("/api/ext/platforms/wechat/collect");

@@ -103,9 +103,10 @@ class SubscriptionStore:
             [item for item in self.list() if item.id != subscription_id]
         )
 
-    def sync_wechat_accounts(self, names) -> tuple[Subscription, ...]:
+    def sync_wechat_accounts(self, names, daily_limit: int = 5) -> tuple[Subscription, ...]:
         """Replace the default WeChat account list with one atomic state write."""
 
+        _validate_limit(daily_limit)
         desired = _clean_account_names(names)
         subscriptions = self.list()
         existing = {}
@@ -127,7 +128,7 @@ class SubscriptionStore:
                     keywords=(),
                     requirement="",
                     enabled=True,
-                    daily_limit=5,
+                    daily_limit=daily_limit,
                     zotero_collection=name,
                     created_at=now,
                     updated_at=now,
@@ -141,6 +142,7 @@ class SubscriptionStore:
                     name=name,
                     source=name,
                     enabled=True,
+                    daily_limit=daily_limit,
                     zotero_collection=collection,
                     updated_at=now,
                 )

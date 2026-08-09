@@ -74,6 +74,27 @@
             var platformNames = {wechat:"微信", zhihu:"知乎", bilibili:"B站", xiaohongshu:"小红书", douyin:"抖音"};
             title.textContent = response.title || "内容已解析";
             meta.textContent = (platformNames[response.platform] || response.platform) + " · " + (response.author || "未识别作者");
+            if (response.reason === "advertisement") {
+                title.textContent = "已过滤推广内容";
+                meta.textContent = platformNames[response.platform] || response.platform;
+                preview.textContent = "这篇内容主要是课程、咨询、学员喜报或其他推广信息，未进入待确认区。";
+                reviewLink.hidden = true;
+                return;
+            }
+            if (response.reason === "duplicate") {
+                title.textContent = "已处理过这篇内容";
+                preview.textContent = response.status === "approved"
+                    ? "这篇内容已经保存到 Obsidian，不会重复生成笔记。"
+                    : "这篇内容已在待处理或待确认列表中，不会重复创建任务。";
+                reviewLink.hidden = response.status !== "preview_ready";
+                return;
+            }
+            if (response.platform === "wechat" && response.status === "preview_ready") {
+                title.textContent = "公众号清洗预览已生成";
+                preview.textContent = "正文和正文图片已保留，明确广告已移除。请查看后确认保存到 Obsidian。";
+                reviewLink.hidden = false;
+                return;
+            }
             if (["pending", "failed", "handoff_ready"].includes(response.status)) {
                 var settings = await window.ContentHubAPI.get("/api/ext/knowledge/settings");
                 if (settings.auto_distill) {

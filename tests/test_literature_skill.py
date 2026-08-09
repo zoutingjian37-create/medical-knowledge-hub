@@ -12,15 +12,13 @@ class LiteratureSkillContractTests(unittest.TestCase):
 
         for required in (
             "name: distill-medical-literature",
-            "临床问题",
-            "PICO/PECO",
-            "数据与变量",
-            "方法—问题映射",
-            "主要结论",
-            "统计方法创新",
-            "其他创新点",
-            "迁移方向",
-            "潜在选题",
+            "为什么值得看",
+            "研究问题",
+            "研究怎么做",
+            "统计方法",
+            "主要发现",
+            "这篇研究的新意",
+            "科研设计启发",
             "证据边界",
             "等待用户确认",
         ):
@@ -34,9 +32,8 @@ class LiteratureSkillContractTests(unittest.TestCase):
             "广告",
             "课程",
             "二维码",
-            "不是创新",
             "复杂不等于创新",
-            "不得声称可直接立项",
+            "不夸大可发表性",
         ):
             with self.subTest(required=required):
                 self.assertIn(required, text)

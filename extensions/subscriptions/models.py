@@ -68,6 +68,12 @@ class LiteratureRun:
     saved_zotero: int = 0
     queued: int = 0
     error: str = ""
+    account_name: str = ""
+    date_from: str = ""
+    date_to: str = ""
+    failed_step: str = ""
+    retry_from: str = ""
+    progress_kept: bool = False
 
     def to_dict(self) -> dict:
         return asdict(self)

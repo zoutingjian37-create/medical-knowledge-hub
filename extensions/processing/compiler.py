@@ -1,5 +1,6 @@
 """Prepare Codex handoffs and apply only user-approved Wiki changes."""
 
+import json
 import os
 import re
 import shutil
@@ -8,6 +9,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from .archive import clean_markdown, is_advertisement_document
 from .job_store import KnowledgeJob, KnowledgeJobStore
 from .source_cache import SourceCache
 
@@ -24,6 +26,17 @@ REQUIRED_SECTIONS = (
     "潜在选题",
     "证据边界",
     "Wiki 更新建议",
+    "来源",
+)
+LITERATURE_REQUIRED_SECTIONS = (
+    "为什么值得看",
+    "研究问题",
+    "研究怎么做",
+    "统计方法为什么这样选",
+    "主要发现",
+    "这篇研究的新意",
+    "对科研设计的启发",
+    "局限与证据边界",
     "来源",
 )
 RESERVED_WIKI_ROOTS = {"微信公众号", "证据卡", "系统"}
@@ -102,8 +115,75 @@ class KnowledgeCompiler:
         )
         return HandoffResult(mode, instruction, handoff_path, output_path)
 
+    def prepare_clean_preview(self, job_id: str) -> KnowledgeJob:
+        """Build a reviewable WeChat preview with deterministic local cleaning."""
+        job = self.store.get(job_id)
+        if str(job.platform).strip().casefold() != "wechat":
+            raise PreviewValidationError(
+                "deterministic cleaning is only available for WeChat articles"
+            )
+        cache_path = Path(job.cache_path)
+        if not job.cache_path or not cache_path.exists():
+            self.store.update(job_id, status="needs_reparse", cache_path="")
+            raise FileNotFoundError("temporary article text expired; parse the link again")
+        cleaned_body = cache_path.read_text("utf-8").strip()
+        frontmatter = (
+            "---\n"
+            f"source_url: {json.dumps(job.source_url, ensure_ascii=False)}\n"
+            "source_platform: wechat\n"
+            f"source_account: {json.dumps(job.author or '', ensure_ascii=False)}\n"
+            f"source_title: {json.dumps(job.title, ensure_ascii=False)}\n"
+            f"published_at: {json.dumps(job.published_at or '', ensure_ascii=False)}\n"
+            "verification_level: public_account\n"
+            "status: preview\n"
+            "wiki_updates: []\n"
+            "---\n\n"
+        )
+        markdown = (
+            frontmatter
+            + cleaned_body
+            + f"\n\n## 来源\n\n[{job.title}]({job.source_url})\n\n"
+            + "状态：等待用户确认\n"
+        )
+        return self.accept_preview(job_id, markdown, [])
+
+    def reclean(self, job_id: str) -> KnowledgeJob:
+        """Rebuild one WeChat preview with the current deterministic rules."""
+
+        job = self.store.get(job_id)
+        if str(job.platform).strip().casefold() != "wechat":
+            raise PreviewValidationError("only WeChat jobs can be cleaned again")
+        if job.status in {"rejected", "trashed", "approved"}:
+            raise PreviewValidationError("only active WeChat jobs can be cleaned again")
+        cache_path = Path(job.cache_path)
+        if not job.cache_path or not cache_path.exists():
+            return self.store.update(
+                job_id,
+                status="needs_reparse",
+                cache_path="",
+                error="temporary article text expired; parse the link again",
+            )
+        source = cache_path.read_text("utf-8")
+        if is_advertisement_document(job.title, source):
+            self.trash(job_id)
+            return self.store.update(job_id, error="advertisement")
+        cleaned = clean_markdown(source)
+        refreshed_cache = self.cache.put(job.id, cleaned)
+        self.store.update(job_id, cache_path=str(refreshed_cache), error="")
+        return self.prepare_clean_preview(job_id)
+
+    def reclean_many(self, job_ids: list[str]) -> tuple[KnowledgeJob, ...]:
+        unique_ids = tuple(dict.fromkeys(job_ids))
+        jobs = [self.store.get(job_id) for job_id in unique_ids]
+        if any(str(job.platform).strip().casefold() != "wechat" for job in jobs):
+            raise PreviewValidationError("all selected jobs must be WeChat articles")
+        return tuple(self.reclean(job.id) for job in jobs)
+
     def run_codex(self, job_id: str, timeout: int = 900) -> KnowledgeJob:
         """Generate a preview with the locally authenticated Codex CLI."""
+        job = self.store.get(job_id)
+        if str(job.platform).strip().casefold() == "wechat":
+            return self.prepare_clean_preview(job_id)
         executable = _resolve_codex_cli(self.codex_executable)
         if executable is None:
             raise CodexExecutionError(
@@ -206,7 +286,10 @@ class KnowledgeCompiler:
 
         vault = Path(vault_path).expanduser().resolve()
         vault.mkdir(parents=True, exist_ok=True)
-        card_path = _available_card_path(vault / "证据卡", job.title, job.source_url)
+        managed_folder = "微信公众号" if job.platform == "wechat" else "证据卡"
+        card_path = _available_card_path(
+            vault / managed_folder, job.title, job.source_url
+        )
         approved = preview_path.read_text("utf-8")
         approved = approved.replace("status: preview", "status: approved", 1)
         approved = approved.replace("状态：等待用户确认", "状态：已确认", 1)
@@ -331,11 +414,29 @@ def _validate_preview(
 ) -> None:
     if job.source_url not in markdown:
         raise PreviewValidationError("preview source does not match the job")
-    missing = [
-        section
-        for section in REQUIRED_SECTIONS
-        if not re.search(rf"^##\s+{re.escape(section)}\s*$", markdown, re.MULTILINE)
-    ]
+    platform = str(job.platform).strip().casefold()
+    if platform == "wechat":
+        if wiki_updates:
+            raise PreviewValidationError(
+                "cleaned WeChat articles cannot update Wiki pages automatically"
+            )
+        missing = []
+    elif platform == "literature":
+        missing = [
+            section
+            for section in LITERATURE_REQUIRED_SECTIONS
+            if not re.search(
+                rf"^##\s+{re.escape(section)}\s*$", markdown, re.MULTILINE
+            )
+        ]
+    else:
+        missing = [
+            section
+            for section in REQUIRED_SECTIONS
+            if not re.search(
+                rf"^##\s+{re.escape(section)}\s*$", markdown, re.MULTILINE
+            )
+        ]
     if missing:
         raise PreviewValidationError(
             "preview is missing required sections: " + ", ".join(missing)

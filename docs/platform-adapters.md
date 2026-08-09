@@ -2,7 +2,7 @@
 
 ## 外部采集运行时
 
-知乎、B站、小红书和抖音复用 `jackwener/OpenCLI` 作为本地采集引擎。微信公众号分成两层：本项目代码操作已登录的微信电脑版发现公开链接，OpenCLI 只解析已经复制出的单篇公开链接。本仓库维护的边界是：
+知乎、B站、小红书和抖音复用 `jackwener/OpenCLI` 作为本地采集引擎。微信公众号不经过 OpenCLI：本项目代码操作已登录的微信电脑版发现公开链接，再用本地 HTML 解析器读取单篇公开文章。本仓库维护的边界是：
 
 1. 调用 OpenCLI 的只读命令并要求 JSON 或 Markdown 输出；
 2. 校验链接确实属于目标平台；
@@ -25,7 +25,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install-platform-engin
 
 ## 当前能力边界
 
-- 微信公众号：默认在已登录的微信电脑版中进入“搜一搜”，精确匹配公众号，点击“文章”，按日期范围选取文章，再复制 `mp.weixin.qq.com` 公开链接。`weixin download` 负责读取单篇正文，入队前继续校验正文作者。
+- 微信公众号：默认在已登录的微信电脑版中进入“搜一搜”，精确匹配公众号，进入主页后强制点击“文章”，按日期范围选取文章，再复制 `mp.weixin.qq.com` 公开链接。本地解析器读取单篇正文，入队前继续校验正文作者。
 - 知乎：回答详情、用户回答/文章列表、文章公开页读取。
 - B站：用户搜索、UP 主视频列表、视频详情；字幕能力由 OpenCLI 提供，可在后续任务阶段接入。
 - 小红书：作者笔记列表、带有效分享参数的单篇笔记详情。
@@ -36,8 +36,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install-platform-engin
 
 ## 微信视觉发现边界
 
-默认 `mode=wechat_ui` 使用本项目的 `WindowsWeChatVisionSession`。它通过本地 OCR 识别文字和日期，通过窗口相对位置点击没有文字的菜单按钮，并在每一步验证页面状态。它不使用 Codex Computer Use，也不会扫描聊天记录、Cookie、Token 或个人数据库。
+微信公众号发现只使用本项目的 `WindowsWeChatVisionSession`：从已登录微信电脑版进入搜一搜，精确匹配公众号，强制切换到“文章”标签，再通过本地 OCR 读取每篇文章自己的日期行。窗口句柄用于可靠恢复和聚焦，内容读取不依赖微信 UI Automation 树。它不使用 Codex Computer Use，也不会扫描聊天记录、Cookie、Token 或个人数据库。
 
 日期标签 `今天`、`昨天`、`星期几`、`M月D日` 和 `YYYY年M月D日` 会先转换成北京时间的具体日期。打开文章后再读取正文完整发布日期。最终索引使用“公众号 + 具体发布日期 + 规范化链接”，同一天的多篇文章不会相互覆盖。
 
-`pywechat127` 的 UI Automation 收藏流程只保留为旧版微信兼容实现。当前微信 4.1.12.26 的 UI Automation 树在本机不可见，所以默认流程不依赖它。微信升级导致文字或布局变化时，失败现场保存到 `D:\Codex\state\medical-knowledge-hub\diagnostics`，解析和知识管线无需跟着重写。
+`pywechat` 的窗口状态划分被用作设计参考，但其 UI Automation 收藏流程在当前微信 4.1.12.26 上因 UI 树不可见而失效，也不支持按日期完整发现，因此不再作为运行依赖或备用成功路径。微信升级导致文字或布局变化时，失败现场保存到 `D:\Codex\state\medical-knowledge-hub\diagnostics`，解析和知识管线无需跟着重写。

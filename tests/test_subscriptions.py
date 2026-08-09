@@ -120,6 +120,22 @@ class SubscriptionStoreTests(unittest.TestCase):
         self.assertEqual(literature, store.get(literature.id))
         self.assertFalse(any(self.root.rglob("*.tmp")))
 
+    def test_sync_wechat_accounts_applies_the_saved_per_account_limit(self):
+        store = self._store()
+        existing = store.create(
+            kind="wechat_account",
+            name="示例医学方法号",
+            source="示例医学方法号",
+            daily_limit=2,
+        )
+
+        accounts = store.sync_wechat_accounts(
+            ["示例医学方法号", "示例循证研究号"], daily_limit=7
+        )
+
+        self.assertEqual(existing.id, accounts[0].id)
+        self.assertEqual([7, 7], [item.daily_limit for item in accounts])
+
     def test_sync_wechat_accounts_can_clear_the_default_list(self):
         store = self._store()
         store.create(kind="wechat_account", name="示例公众号", source="示例公众号")
@@ -139,7 +155,10 @@ class SubscriptionApiTests(unittest.TestCase):
         ), TestClient(app) as client:
             saved = client.put(
                 "/api/ext/subscriptions/wechat-accounts",
-                json={"accounts": ["示例医学公众号", "循证研究笔记", "示例医学公众号"]},
+                json={
+                    "accounts": ["示例医学公众号", "循证研究笔记", "示例医学公众号"],
+                    "daily_limit": 7,
+                },
             )
             listed = client.get("/api/ext/subscriptions/wechat-accounts")
 
@@ -149,6 +168,7 @@ class SubscriptionApiTests(unittest.TestCase):
             [item["name"] for item in saved.json()["subscriptions"]],
         )
         self.assertEqual(saved.json(), listed.json())
+        self.assertEqual([7, 7], [item["daily_limit"] for item in saved.json()["subscriptions"]])
 
     def test_imported_automation_is_synchronized_with_the_windows_task(self):
         from fastapi.testclient import TestClient

@@ -1012,7 +1012,8 @@ body.subscription-surface .page-shell {
     text-align: center;
 }
 
-.review-page dialog {
+.review-page dialog,
+.subscription-page + dialog {
     width: min(900px, calc(100vw - 32px));
     max-height: 85vh;
     padding: 0;
@@ -1021,7 +1022,8 @@ body.subscription-surface .page-shell {
     box-shadow: 0 24px 80px rgba(23, 35, 58, 0.2);
 }
 
-.review-page dialog::backdrop {
+.review-page dialog::backdrop,
+.subscription-page + dialog::backdrop {
     background: rgba(23, 35, 58, 0.46);
 }
 
@@ -1054,6 +1056,88 @@ body.subscription-surface .page-shell {
     background: #fbfcfc;
     line-height: 1.75;
     white-space: pre-wrap;
+}
+
+.preview-content {
+    display: grid;
+    gap: 20px;
+    background: var(--surface);
+    white-space: normal;
+}
+
+.preview-document {
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+}
+
+.preview-document > header {
+    padding: 18px 20px;
+    border-bottom: 1px solid var(--line);
+    background: var(--surface-muted);
+}
+
+.preview-document > header h2,
+.preview-document > header p {
+    margin: 0;
+}
+
+.preview-document > header h2 {
+    margin-bottom: 6px;
+    font-size: 20px;
+    line-height: 1.35;
+}
+
+.preview-document > header a {
+    display: inline-block;
+    margin-top: 8px;
+}
+
+.preview-meta {
+    color: var(--ink-soft);
+    font-size: 13px;
+}
+
+.preview-markdown {
+    padding: 20px;
+    color: var(--ink);
+    line-height: 1.8;
+}
+
+.preview-markdown > :first-child {
+    margin-top: 0;
+}
+
+.preview-markdown > :last-child {
+    margin-bottom: 0;
+}
+
+.preview-markdown h2,
+.preview-markdown h3,
+.preview-markdown h4,
+.preview-markdown p,
+.preview-markdown ul,
+.preview-markdown ol,
+.preview-markdown blockquote {
+    margin: 0 0 14px;
+}
+
+.preview-markdown blockquote {
+    padding: 10px 14px;
+    border-left: 3px solid var(--accent);
+    background: var(--surface-muted);
+    color: var(--ink-soft);
+}
+
+.preview-markdown img {
+    display: block;
+    width: auto;
+    max-width: 100%;
+    max-height: 720px;
+    margin: 14px auto;
+    border-radius: 8px;
+    object-fit: contain;
 }
 
 .dialog-actions {

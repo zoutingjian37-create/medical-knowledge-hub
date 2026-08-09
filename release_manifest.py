@@ -24,6 +24,7 @@ INCLUDED_FILES = {
     "install.ps1",
     "launch.ps1",
     "release_manifest.py",
+    "release_privacy_check.py",
     "requirements-wechat-ui.txt",
     "requirements.txt",
     "start.bat",

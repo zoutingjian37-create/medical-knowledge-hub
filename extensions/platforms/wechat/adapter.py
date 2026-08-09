@@ -16,14 +16,14 @@ from ..base import (
     PlatformHealth,
     RawItem,
 )
-from .parser import OpenCLIWeChatParser
+from .parser import LocalWeChatParser
 from .public_link import canonicalize_public_article_url
 
 
 class WeChatAdapter(PlatformAdapter):
     platform_key = "wechat"
-    def __init__(self, parser: Optional[OpenCLIWeChatParser] = None):
-        self._parser = parser or OpenCLIWeChatParser()
+    def __init__(self, parser: Optional[LocalWeChatParser] = None):
+        self._parser = parser or LocalWeChatParser()
 
     async def authenticate(self) -> AuthResult:
         return AuthResult(

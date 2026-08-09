@@ -1,9 +1,11 @@
 import asyncio
 from dataclasses import replace
 from datetime import datetime
+import os
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
+from unittest.mock import patch
 
 
 class AutomationDueTests(unittest.TestCase):
@@ -41,6 +43,17 @@ class AutomationDueTests(unittest.TestCase):
 
 
 class SubscriptionRunnerTests(unittest.TestCase):
+    def test_production_factory_builds_the_real_runner(self):
+        from extensions.subscriptions.factory import build_subscription_runner
+
+        with TemporaryDirectory() as directory, patch.dict(
+            os.environ, {"CONTENT_HUB_STATE_DIR": directory}
+        ):
+            runner = build_subscription_runner()
+
+        self.assertIsNotNone(runner.literature_pipeline)
+        self.assertIs(runner.store, runner.wechat_pipeline.subscription_store)
+
     def test_automatic_run_skips_paused_subscriptions_and_respects_global_limit(self):
         from extensions.subscriptions.runner import SubscriptionRunner
         from extensions.subscriptions.store import SubscriptionStore
@@ -111,6 +124,52 @@ class SubscriptionRunnerTests(unittest.TestCase):
         self.assertEqual((literature.id,), literature_results)
         self.assertEqual([wechat.id], wechat_pipeline.ran)
         self.assertEqual([literature.id], literature_pipeline.ran)
+
+    def test_wechat_accounts_keep_their_own_limits_and_do_not_consume_token_budget(self):
+        from extensions.subscriptions.runner import SubscriptionRunner
+        from extensions.subscriptions.store import SubscriptionStore
+
+        class LiteraturePipeline:
+            async def run(self, subscription):
+                return subscription.id
+
+        class WeChatPipeline:
+            def __init__(self):
+                self.ran = []
+
+            async def run_manual(self, subscription, date_from=None, date_to=None):
+                self.ran.append((subscription.name, subscription.daily_limit))
+                return subscription.id
+
+        with TemporaryDirectory() as directory:
+            store = SubscriptionStore(Path(directory))
+            first = store.create(
+                kind="wechat_account",
+                name="示例医学方法号",
+                source="示例医学方法号",
+                daily_limit=5,
+            )
+            second = store.create(
+                kind="wechat_account",
+                name="示例循证研究号",
+                source="示例循证研究号",
+                daily_limit=5,
+            )
+            store.update_automation(daily_limit=5)
+            wechat_pipeline = WeChatPipeline()
+            runner = SubscriptionRunner(
+                store=store,
+                literature_pipeline=LiteraturePipeline(),
+                wechat_pipeline=wechat_pipeline,
+            )
+
+            results = asyncio.run(runner.run_all_manual(scope="wechat"))
+
+        self.assertEqual((first.id, second.id), results)
+        self.assertEqual(
+            [("示例医学方法号", 5), ("示例循证研究号", 5)],
+            wechat_pipeline.ran,
+        )
 
 
 class ScheduledTaskScriptTests(unittest.TestCase):

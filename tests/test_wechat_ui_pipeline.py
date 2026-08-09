@@ -1,4 +1,5 @@
 import asyncio
+from datetime import date
 import inspect
 import os
 import time
@@ -162,6 +163,99 @@ class OpenCLIWeChatParserContractTests(unittest.TestCase):
         self.assertEqual([], runner.calls)
 
 
+class LocalWeChatParserTests(unittest.TestCase):
+    def test_ct_timestamp_fallback_uses_beijing_calendar_date(self):
+        from extensions.platforms.wechat.parser import _published_at
+        from bs4 import BeautifulSoup
+
+        # 2026-08-01 16:30 UTC is already 2026-08-02 in Beijing.
+        html = '<script>var ct = "1785601800";</script>'
+        soup = BeautifulSoup(html, "html.parser")
+
+        self.assertEqual("2026-08-02", _published_at(soup, html))
+    def test_public_html_preserves_remote_body_images_without_downloading_them(self):
+        import httpx
+
+        from extensions.platforms.wechat.parser import LocalWeChatParser
+
+        html = """
+        <html><body>
+          <h1 id="activity-name">医学统计方法讲解</h1>
+          <span id="js_name">示例医学公众号</span>
+          <em id="publish_time">2026年5月1日</em>
+          <div id="js_content">
+            <p>这是一段足够长的研究正文，用来验证正文图片能够以远程链接保留，同时不会下载到项目目录。</p>
+            <p><img data-src="https://mmbiz.qpic.cn/example/body-image.png" alt="研究流程图"></p>
+            <p>第二段继续解释研究设计、变量定义、统计方法适用条件、偏倚来源以及结论的证据边界。</p>
+          </div>
+        </body></html>
+        """
+
+        class Client:
+            async def get(self, url, headers=None):
+                return httpx.Response(
+                    200,
+                    text=html,
+                    request=httpx.Request("GET", url),
+                )
+
+        document = asyncio.run(LocalWeChatParser(client=Client()).parse(PUBLIC_URL))
+
+        self.assertIn(
+            "![研究流程图](https://mmbiz.qpic.cn/example/body-image.png)",
+            document.markdown,
+        )
+
+    def test_public_html_is_parsed_without_browser_bridge(self):
+        import httpx
+
+        from extensions.platforms.wechat.parser import LocalWeChatParser
+
+        html = """
+        <html><body>
+          <h1 id="activity-name">医学高分文章方法解读</h1>
+          <span id="js_name">示例医学统计号</span>
+          <em id="publish_time">2026年05月01日</em>
+          <div id="js_content">
+            <p>这是一段足够长的研究正文，用于检验本地解析器不依赖浏览器扩展。</p>
+            <p>研究采用竞争风险模型，并讨论方法适用条件、偏倚来源和可迁移方向。</p>
+            <p>第三段补充研究设计、变量定义、敏感性分析以及结论边界。</p>
+          </div>
+        </body></html>
+        """
+
+        class Client:
+            async def get(self, url, headers=None):
+                return httpx.Response(
+                    200,
+                    text=html,
+                    request=httpx.Request("GET", url),
+                )
+
+        document = asyncio.run(LocalWeChatParser(client=Client()).parse(PUBLIC_URL))
+
+        self.assertEqual("医学高分文章方法解读", document.title)
+        self.assertEqual("示例医学统计号", document.author)
+        self.assertEqual("2026-05-01", document.published_at)
+        self.assertIn("竞争风险模型", document.markdown)
+
+    def test_verification_page_fails_explicitly(self):
+        import httpx
+
+        from extensions.platforms.wechat.parser import LocalWeChatParser
+
+        class Client:
+            async def get(self, url, headers=None):
+                return httpx.Response(
+                    200,
+                    text="<html><body>环境异常，请完成验证</body></html>",
+                    request=httpx.Request("GET", url),
+                )
+
+        with self.assertRaisesRegex(RuntimeError, "verification"):
+            asyncio.run(LocalWeChatParser(client=Client()).parse(PUBLIC_URL))
+
+
 class WeChatAdapterParserBoundaryTests(unittest.TestCase):
     def test_default_wechat_adapter_uses_the_independent_markdown_parser(self):
         try:
@@ -291,12 +385,12 @@ class ObsidianArchiveContractTests(unittest.TestCase):
                 "相关分析用于描述两个变量关联的方向和强度。\n\n"
                 "## 方法选择\n\n"
                 "Pearson相关关注线性关系，Spearman相关关注单调关系。\n\n"
-                "除了SPSS，数据分析可使用郑老师研制的工具。\n\n"
+                "除了SPSS，数据分析可使用本团队工具平台，点击领取并免费使用。\n\n"
                 "www.medsta.cn\n\n"
                 "## 相关分析方法小结\n\n"
                 "应先查看散点图，并检查异常值。\n\n"
                 "本文更多疑问，请发送关键词4020到本公众号。\n\n"
-                "关于郑老师团队及公众号：课程训练营详情。\n"
+                "关于示例团队及公众号：课程训练营详情。\n"
             ),
         )
 
@@ -312,6 +406,7 @@ class ObsidianArchiveContractTests(unittest.TestCase):
             self.assertNotIn("课件如下", saved)
             self.assertNotIn("发送“报名”", saved)
             self.assertNotIn("medsta.cn", saved)
+            self.assertNotIn("点击领取", saved)
             self.assertNotIn("课程训练营详情", saved)
 
 
@@ -328,7 +423,7 @@ class WeChatDiscoveryApiTests(unittest.TestCase):
 
         self.assertEqual(200, response.status_code)
         self.assertIn("公众号文章", response.text)
-        self.assertIn("具体年月日", response.text)
+        self.assertIn("按文章发布日期筛选", response.text)
         self.assertNotIn("示例医学统计号", response.text)
         self.assertIn("/api/ext/platforms/wechat/discover", response.text)
         self.assertIn("/api/ext/platforms/wechat/collect", response.text)
@@ -358,13 +453,12 @@ class WeChatDiscoveryApiTests(unittest.TestCase):
                 json={
                     "accounts": ["示例医学统计号"],
                     "per_account": 3,
-                    "mode": "wechat_ui",
                 },
             )
 
         self.assertEqual(200, response.status_code)
         self.assertEqual(
-            {"links": [PUBLIC_URL], "mode": "wechat_ui"},
+            {"links": [PUBLIC_URL], "source": "desktop_wechat"},
             response.json(),
         )
         serialized = response.text.lower()
@@ -448,7 +542,7 @@ class WeChatDiscoveryApiTests(unittest.TestCase):
                     },
                 ),
                 patch(
-                    "routes_ext.platforms.OpenCLIWeChatParser",
+                    "routes_ext.platforms.LocalWeChatParser",
                     return_value=Parser(),
                 ),
                 TestClient(app) as client,
@@ -459,12 +553,137 @@ class WeChatDiscoveryApiTests(unittest.TestCase):
                 )
 
         self.assertEqual(200, response.status_code)
-        self.assertEqual("pending", response.json()["status"])
+        self.assertEqual("preview_ready", response.json()["status"])
         self.assertEqual(PUBLIC_URL, response.json()["source_url"])
         self.assertNotIn("cache_path", response.text)
 
 
 class WeChatPipelineTests(unittest.TestCase):
+    def test_one_account_failure_does_not_stop_later_accounts(self):
+        from extensions.platforms.wechat.discovery import WeChatDiscoveryError
+        from extensions.platforms.wechat.pipeline import WeChatPipeline
+        from extensions.processing.documents import MarkdownDocument
+        from extensions.processing.job_queue import QueueResult
+
+        class Discoverer:
+            def discover(self, accounts, per_account=10, date_from=None, date_to=None):
+                if accounts == ["示例失败号"]:
+                    raise WeChatDiscoveryError(
+                        "文章列表未就绪",
+                        step="article_list",
+                        retry_from="account_search",
+                        progress_kept=False,
+                    )
+                return [PUBLIC_URL]
+
+        class Parser:
+            async def parse(self, url):
+                return MarkdownDocument(
+                    source_url=url,
+                    title="有效文章",
+                    author="示例成功号",
+                    published_at="2026-08-02",
+                    markdown="# 有效文章",
+                )
+
+        class Queue:
+            def enqueue(self, document, platform="wechat"):
+                return QueueResult(True, "pending", None)
+
+        results = asyncio.run(
+            WeChatPipeline(Discoverer(), Parser(), Queue()).run(
+                ["示例失败号", "示例成功号"],
+                per_account=5,
+                date_from=date(2026, 8, 2),
+                date_to=date(2026, 8, 2),
+            )
+        )
+
+        self.assertEqual(2, len(results))
+        self.assertEqual("discovery_failed", results[0].reason)
+        self.assertEqual("示例失败号", results[0].account)
+        self.assertEqual("article_list", results[0].failed_step)
+        self.assertTrue(results[1].queued)
+
+    def test_one_article_parse_failure_keeps_processing_remaining_links(self):
+        from extensions.platforms.wechat.pipeline import WeChatPipeline
+        from extensions.processing.documents import MarkdownDocument
+        from extensions.processing.job_queue import QueueResult
+
+        second_url = "https://mp.weixin.qq.com/s/second-example"
+
+        class Discoverer:
+            def discover(self, accounts, per_account=10, date_from=None, date_to=None):
+                return [PUBLIC_URL, second_url]
+
+        class Parser:
+            async def parse(self, url):
+                if url == PUBLIC_URL:
+                    raise RuntimeError("temporary verification page")
+                return MarkdownDocument(
+                    source_url=url,
+                    title="有效文章",
+                    author="示例医学统计号",
+                    published_at="2026-08-02",
+                    markdown="# 有效文章",
+                )
+
+        class Queue:
+            def enqueue(self, document, platform="wechat"):
+                return QueueResult(True, "pending", None)
+
+        results = asyncio.run(
+            WeChatPipeline(Discoverer(), Parser(), Queue()).run(
+                ["示例医学统计号"],
+                per_account=5,
+                date_from=date(2026, 8, 2),
+                date_to=date(2026, 8, 2),
+            )
+        )
+
+        self.assertEqual(["parse_failed", "pending"], [item.reason for item in results])
+        self.assertEqual("示例医学统计号", results[0].account)
+    def test_parsed_article_outside_requested_range_is_not_queued(self):
+        from extensions.platforms.wechat.pipeline import WeChatPipeline
+        from extensions.processing.documents import MarkdownDocument
+        from extensions.processing.job_queue import QueueResult
+
+        class Discoverer:
+            def discover(self, accounts, per_account=10, date_from=None, date_to=None):
+                return [PUBLIC_URL]
+
+        class Parser:
+            async def parse(self, url):
+                return MarkdownDocument(
+                    source_url=url,
+                    title="范围外文章",
+                    author="示例医学统计号",
+                    published_at="2026-05-02",
+                    markdown="# 范围外文章",
+                )
+
+        class Queue:
+            def __init__(self):
+                self.documents = []
+
+            def enqueue(self, document, platform="wechat"):
+                self.documents.append(document)
+                return QueueResult(True, "pending", None)
+
+        queue = Queue()
+        pipeline = WeChatPipeline(Discoverer(), Parser(), queue)
+
+        results = asyncio.run(
+            pipeline.run(
+                ["示例医学统计号"],
+                per_account=5,
+                date_from=date(2026, 5, 1),
+                date_to=date(2026, 5, 1),
+            )
+        )
+
+        self.assertEqual([], queue.documents)
+        self.assertEqual("date_mismatch", results[0].reason)
     def test_pipeline_creates_pending_jobs_instead_of_archiving_raw_articles(self):
         try:
             from extensions.platforms.wechat.pipeline import WeChatPipeline

@@ -89,12 +89,13 @@ class WindowsPackagingTests(unittest.TestCase):
         self.assertIn('id="medical-hub"', svg)
         self.assertNotIn("linearGradient", svg)
 
-    def test_optional_wechat_ui_dependency_is_not_duplicated(self):
+    def test_wechat_ui_uses_handle_focus_without_the_retired_pywechat_runtime(self):
         core = (ROOT / "requirements.txt").read_text("utf-8")
         optional = (ROOT / "requirements-wechat-ui.txt").read_text("utf-8")
 
         self.assertNotIn("pywechat127", core)
-        self.assertIn("pywechat127==1.9.8", optional)
+        self.assertNotIn("pywechat127", optional)
+        self.assertIn("pywinauto", optional)
 
     def test_launcher_starts_hidden_and_waits_for_health(self):
         launcher = (ROOT / "launch.ps1").read_text("utf-8")
@@ -107,14 +108,14 @@ class WindowsPackagingTests(unittest.TestCase):
     def test_readme_has_a_clean_machine_reproduction_guide(self):
         readme = (ROOT / "README.md").read_text("utf-8")
 
-        for section in ("## 五分钟复现", "## 验收清单", "## 故障排查"):
+        for section in ("## 三步启动", "## 验收清单", "## 故障排查"):
             self.assertIn(section, readme)
         for dependency in ("GitHub CLI", "Codex CLI", "OpenCLI", "OBSIDIAN_VAULT_PATH"):
             self.assertIn(dependency, readme)
 
     def test_application_reports_the_release_version(self):
         app_source = (ROOT / "app.py").read_text("utf-8")
-        self.assertIn('APP_VERSION = "1.2.0"', app_source)
+        self.assertIn('APP_VERSION = "1.3.0"', app_source)
         self.assertIn("version=APP_VERSION", app_source)
 
     def test_daily_worker_purges_expired_recycle_bin_items(self):

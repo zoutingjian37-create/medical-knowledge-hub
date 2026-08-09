@@ -4,22 +4,21 @@ import asyncio
 from dataclasses import asdict
 from datetime import date
 import inspect
-from typing import Literal
-
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from extensions.platforms.base import PlatformError
 from extensions.platforms.registry import platform_registry
 from extensions.platforms.wechat.discovery import (
-    OpenCLIWeChatDiscoverer,
     WeChatDiscoveryError,
     WeChatUIDiscoverer,
 )
-from extensions.platforms.wechat.parser import OpenCLIWeChatParser
+from extensions.platforms.wechat.parser import LocalWeChatParser
 from extensions.platforms.wechat.pipeline import WeChatPipeline
 from extensions.platforms.url_router import detect_platform
 from extensions.processing.documents import from_normalized
+from extensions.processing.compiler import KnowledgeCompiler
 from extensions.processing.job_queue import KnowledgeJobQueue, QueueResult
 
 
@@ -40,7 +39,6 @@ class PlatformFetchRequest(BaseModel):
 class WeChatDiscoverRequest(BaseModel):
     accounts: list[str] = Field(min_length=1, max_length=20)
     per_account: int = Field(default=10, ge=1, le=50)
-    mode: Literal["public", "wechat_ui"] = "wechat_ui"
     date_from: date | None = None
     date_to: date | None = None
 
@@ -50,7 +48,7 @@ class WeChatDiscoverRequest(BaseModel):
     summary="Discover public WeChat article links",
 )
 async def discover_wechat_links(request: WeChatDiscoverRequest):
-    discoverer = _wechat_discoverer(request.mode)
+    discoverer = WeChatUIDiscoverer()
     try:
         links = await _discover_links(
             discoverer,
@@ -60,8 +58,13 @@ async def discover_wechat_links(request: WeChatDiscoverRequest):
             request.date_to,
         )
     except WeChatDiscoveryError as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
-    return {"links": list(links), "mode": request.mode}
+        raise HTTPException(status_code=502, detail=_wechat_error_payload(exc)) from exc
+    payload = {"links": list(links), "source": "desktop_wechat"}
+    status = _discovery_status_payload(discoverer)
+    if status:
+        payload.update(status)
+        return JSONResponse(status_code=206, content=payload)
+    return payload
 
 
 @router.post(
@@ -69,10 +72,13 @@ async def discover_wechat_links(request: WeChatDiscoverRequest):
     summary="Discover, parse, clean, and queue WeChat articles",
 )
 async def collect_wechat_articles(request: WeChatDiscoverRequest):
+    queue = KnowledgeJobQueue()
+    discoverer = WeChatUIDiscoverer()
     pipeline = WeChatPipeline(
-        discoverer=_wechat_discoverer(request.mode),
-        parser=OpenCLIWeChatParser(),
-        queue=KnowledgeJobQueue(),
+        discoverer=discoverer,
+        parser=LocalWeChatParser(),
+        queue=queue,
+        compiler=KnowledgeCompiler(store=queue.store, cache=queue.cache),
     )
     try:
         if request.date_from is None and request.date_to is None:
@@ -85,11 +91,16 @@ async def collect_wechat_articles(request: WeChatDiscoverRequest):
                 date_to=request.date_to,
             )
     except (RuntimeError, ValueError, WeChatDiscoveryError) as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
-    return {
+        raise HTTPException(status_code=502, detail=_wechat_error_payload(exc)) from exc
+    payload = {
         "results": [_queue_payload(result) for result in results],
-        "mode": request.mode,
+        "source": "desktop_wechat",
     }
+    status = _queue_results_status_payload(results, discoverer)
+    if status:
+        payload.update(status)
+        return JSONResponse(status_code=206, content=payload)
+    return payload
 
 
 @router.post(
@@ -104,7 +115,7 @@ async def queue_public_content(request: PlatformFetchRequest):
 
     try:
         if platform == "wechat":
-            document = await OpenCLIWeChatParser().parse(request.url)
+            document = await LocalWeChatParser().parse(request.url)
         else:
             adapter = _adapter_or_404(platform)
             item_builder = getattr(adapter, "item_ref_from_url", None)
@@ -116,7 +127,12 @@ async def queue_public_content(request: PlatformFetchRequest):
                 raise HTTPException(status_code=503, detail=health.detail)
             raw = await adapter.fetch_item(reference)
             document = from_normalized(adapter.normalize_item(raw))
-        result = KnowledgeJobQueue().enqueue(document, platform=platform)
+        queue = KnowledgeJobQueue()
+        result = queue.enqueue(document, platform=platform)
+        if platform == "wechat" and result.queued and result.job:
+            compiler = KnowledgeCompiler(store=queue.store, cache=queue.cache)
+            preview = compiler.prepare_clean_preview(result.job.id)
+            result = QueueResult(True, "preview_ready", preview)
     except HTTPException:
         raise
     except ValueError as exc:
@@ -184,13 +200,78 @@ def _queue_payload(result: QueueResult) -> dict:
         "source_url": job.source_url if job else "",
         "title": job.title if job else "",
         "author": job.author if job else "",
+        "account": str(getattr(result, "account", "")),
+        "failed_step": str(getattr(result, "failed_step", "")),
+        "retry_from": str(getattr(result, "retry_from", "")),
+        "progress_kept": bool(getattr(result, "progress_kept", False)),
+        "error": str(getattr(result, "error", "")),
     }
 
 
-def _wechat_discoverer(mode: str):
-    if mode == "wechat_ui":
-        return WeChatUIDiscoverer()
-    return OpenCLIWeChatDiscoverer()
+def _discovery_status_payload(discoverer) -> dict:
+    status = getattr(discoverer, "last_status", None)
+    if status is None or getattr(status, "complete", True):
+        return {}
+    return {
+        "complete": False,
+        "attempts": int(getattr(status, "attempts", 0)),
+        "incomplete_accounts": list(
+            getattr(status, "incomplete_accounts", ())
+        ),
+        "resume_dates": dict(getattr(status, "resume_dates", {})),
+        "warning": str(getattr(status, "warning", "")),
+        "failed_step": str(getattr(status, "failed_step", "")),
+        "retry_from": str(getattr(status, "retry_from", "")),
+        "progress_kept": bool(getattr(status, "progress_kept", False)),
+    }
+
+
+def _queue_results_status_payload(results, discoverer) -> dict:
+    """Aggregate account/article failures instead of trusting the last UI status."""
+
+    discovery_status = _discovery_status_payload(discoverer)
+    failures = [
+        result
+        for result in results
+        if result.reason in {"discovery_failed", "parse_failed"}
+    ]
+    if not failures:
+        return discovery_status
+
+    incomplete = list(discovery_status.get("incomplete_accounts", ()))
+    for result in failures:
+        account = str(getattr(result, "account", "")).strip()
+        if account and account not in incomplete:
+            incomplete.append(account)
+    first = failures[0]
+    messages = [str(getattr(item, "error", "")).strip() for item in failures]
+    messages = [message for message in messages if message]
+    payload = {
+        **discovery_status,
+        "complete": False,
+        "incomplete_accounts": incomplete,
+        "warning": discovery_status.get("warning")
+        or "；".join(messages)
+        or "部分公众号或文章未完成，已保留其他成功结果。",
+        "failed_step": discovery_status.get("failed_step")
+        or str(getattr(first, "failed_step", "unknown")),
+        "retry_from": discovery_status.get("retry_from")
+        or str(getattr(first, "retry_from", "account_search")),
+        "progress_kept": bool(discovery_status.get("progress_kept"))
+        or any(bool(getattr(item, "progress_kept", False)) for item in failures),
+    }
+    payload.setdefault("attempts", 0)
+    payload.setdefault("resume_dates", {})
+    return payload
+
+
+def _wechat_error_payload(exc: Exception) -> dict:
+    return {
+        "message": str(exc),
+        "failed_step": str(getattr(exc, "step", "unknown")),
+        "retry_from": str(getattr(exc, "retry_from", "account_search")),
+        "progress_kept": bool(getattr(exc, "progress_kept", False)),
+    }
 
 
 async def _discover_links(

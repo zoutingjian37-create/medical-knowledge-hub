@@ -1,5 +1,6 @@
 """Local subscription and automation settings API."""
 
+from datetime import date
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Response
@@ -40,6 +41,7 @@ class SubscriptionUpdateRequest(BaseModel):
 
 class WeChatAccountsRequest(BaseModel):
     accounts: list[str] = Field(default_factory=list, max_length=100)
+    daily_limit: int = Field(default=5, ge=1, le=100)
 
 
 class AutomationRequest(BaseModel):
@@ -59,6 +61,8 @@ class ImportRequest(BaseModel):
 class RunRequest(BaseModel):
     subscription_id: str | None = None
     scope: Literal["all", "wechat", "literature"] = "all"
+    date_from: date | None = None
+    date_to: date | None = None
 
 
 class ContinueLoginRequest(BaseModel):
@@ -92,7 +96,9 @@ async def list_wechat_accounts():
 @router.put("/subscriptions/wechat-accounts", summary="Replace default WeChat accounts")
 async def replace_wechat_accounts(request: WeChatAccountsRequest):
     try:
-        items = SubscriptionStore().sync_wechat_accounts(request.accounts)
+        items = SubscriptionStore().sync_wechat_accounts(
+            request.accounts, daily_limit=request.daily_limit
+        )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return {"subscriptions": [item.to_dict() for item in items]}
@@ -170,9 +176,25 @@ async def run_literature_subscriptions(request: RunRequest):
     runner = build_subscription_runner()
     try:
         if request.subscription_id:
-            results = (await runner.run_one(request.subscription_id),)
+            if request.date_from is None and request.date_to is None:
+                results = (await runner.run_one(request.subscription_id),)
+            else:
+                results = (
+                    await runner.run_one(
+                        request.subscription_id,
+                        date_from=request.date_from,
+                        date_to=request.date_to,
+                    ),
+                )
         else:
-            results = await runner.run_all_manual(scope=request.scope)
+            if request.date_from is None and request.date_to is None:
+                results = await runner.run_all_manual(scope=request.scope)
+            else:
+                results = await runner.run_all_manual(
+                    scope=request.scope,
+                    date_from=request.date_from,
+                    date_to=request.date_to,
+                )
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except RuntimeError as exc:

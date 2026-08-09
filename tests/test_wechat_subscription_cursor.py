@@ -68,6 +68,102 @@ class WeChatSubscriptionCursorTests(unittest.TestCase):
         )
         self.assertEqual("completed", result.status)
 
+    def test_manual_subscription_run_uses_today_only_instead_of_the_cursor(self):
+        from extensions.subscriptions.runner import WeChatSubscriptionPipeline
+
+        calls = []
+
+        class Pipeline:
+            def __init__(self, *args):
+                pass
+
+            async def run(self, accounts, per_account=10, date_from=None, date_to=None):
+                calls.append((accounts, per_account, date_from, date_to))
+                return ()
+
+        pipeline = WeChatSubscriptionPipeline(
+            discoverer=object(),
+            parser=object(),
+            queue=object(),
+            compiler=object(),
+            run_store=_RunStore(),
+            subscription_store=_SubscriptionStore(),
+            now_provider=lambda: datetime(2026, 8, 2, 9, 0, tzinfo=SHANGHAI_TZ),
+        )
+        subscription = SimpleNamespace(
+            id="wechat-1",
+            source="示例医学公众号",
+            name="示例医学公众号",
+            daily_limit=5,
+            last_successful_date="2026-07-20",
+        )
+
+        with patch("extensions.platforms.wechat.pipeline.WeChatPipeline", Pipeline):
+            result = asyncio.run(pipeline.run_manual(subscription))
+
+        self.assertEqual(
+            [(["示例医学公众号"], 5, date(2026, 8, 2), date(2026, 8, 2))],
+            calls,
+        )
+        self.assertEqual("completed", result.status)
+
+    def test_failed_step_is_kept_in_the_subscription_run(self):
+        from extensions.platforms.wechat.discovery import WeChatDiscoveryStatus
+        from extensions.subscriptions.runner import WeChatSubscriptionPipeline
+
+        class Discoverer:
+            last_status = WeChatDiscoveryStatus(
+                complete=False,
+                warning="文章列表未完成",
+                failed_step="article_list",
+                retry_from="account_search",
+                progress_kept=True,
+            )
+
+        class Pipeline:
+            def __init__(self, *args):
+                pass
+
+            async def run(self, accounts, per_account=10, date_from=None, date_to=None):
+                return (
+                    SimpleNamespace(
+                        queued=False,
+                        job=None,
+                        reason="discovery_failed",
+                        error="文章列表未完成",
+                        failed_step="article_list",
+                        retry_from="account_search",
+                        progress_kept=True,
+                    ),
+                )
+
+        pipeline = WeChatSubscriptionPipeline(
+            discoverer=Discoverer(),
+            parser=object(),
+            queue=object(),
+            compiler=object(),
+            run_store=_RunStore(),
+            subscription_store=_SubscriptionStore(),
+            now_provider=lambda: datetime(2026, 8, 2, 9, 0, tzinfo=SHANGHAI_TZ),
+        )
+        subscription = SimpleNamespace(
+            id="wechat-1",
+            source="示例医学公众号",
+            name="示例医学公众号",
+            daily_limit=5,
+            last_successful_date="",
+        )
+
+        with patch("extensions.platforms.wechat.pipeline.WeChatPipeline", Pipeline):
+            result = asyncio.run(pipeline.run_manual(subscription))
+
+        self.assertEqual("failed", result.status)
+        self.assertEqual("article_list", result.failed_step)
+        self.assertEqual("account_search", result.retry_from)
+        self.assertTrue(result.progress_kept)
+        self.assertEqual(0, result.discovered)
+        self.assertEqual(0, result.filtered)
+
 
 if __name__ == "__main__":
     unittest.main()
