@@ -58,7 +58,7 @@ class LiteratureSkillContractTests(unittest.TestCase):
         self.assertIn("三重验证", method)
         self.assertIn("status: preview", contract)
         self.assertIn("evidence_level:", contract)
-        self.assertIn("```mermaid", contract)
+        self.assertIn("原论文已有清楚的方法图时不重复画 Mermaid", contract)
         self.assertIn("原论文图", contract)
         self.assertIn("$distill-medical-literature", metadata)
         self.assertEqual(language_sources.count("https://mp.weixin.qq.com/s/"), 32)
@@ -119,13 +119,36 @@ class LiteratureSkillContractTests(unittest.TestCase):
             "1–3 张",
             "关键结果图",
             "实际嵌入",
-            "图前提出读图问题",
-            "图后解释它回答了什么",
+            "直接从图中的对象、动作或差异开始",
+            "把可见特征翻译成研究含义",
         ):
             with self.subTest(required=required):
                 self.assertIn(required, skill + contract)
 
         self.assertIn("CC BY", skill + contract)
+
+    def test_figure_narration_starts_from_visible_actions_not_meta_commentary(self):
+        style = (SKILL_ROOT / "references" / "language-style.md").read_text(
+            "utf-8"
+        )
+        contract = (SKILL_ROOT / "references" / "output-contract.md").read_text(
+            "utf-8"
+        )
+
+        self.assertIn("直接从图中的对象、动作或差异开始", style + contract)
+        self.assertIn("不要写“图 X 的重点是”", style + contract)
+        self.assertIn("把可见特征翻译成研究含义", style + contract)
+
+    def test_whole_article_uses_continuous_narrative_not_fixed_card_sections(self):
+        skill = (SKILL_ROOT / "SKILL.md").read_text("utf-8")
+        contract = (SKILL_ROOT / "references" / "output-contract.md").read_text(
+            "utf-8"
+        )
+
+        self.assertIn("4–6 个自然小节", skill + contract)
+        self.assertIn("上一节留下的问题", skill + contract)
+        self.assertIn("去掉小标题后仍能连续读通", skill + contract)
+        self.assertNotIn("固定章节依次为", skill)
 
 
 if __name__ == "__main__":

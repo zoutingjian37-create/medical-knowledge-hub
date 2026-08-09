@@ -150,6 +150,39 @@ flowchart LR
 """
 
 
+def _continuous_literature_preview(source_url=SOURCE_URL):
+    return f"""---
+source_url: "{source_url}"
+source_platform: journal
+source_account: "示例医学期刊"
+source_title: "A study"
+published_at: "2026-03-01"
+evidence_level: full_text_verified
+status: preview
+wiki_updates: []
+---
+
+# 一个自然讲解标题
+
+## 为什么原来的方法总会漏掉一部分人？
+研究问题从一个具体的数据缺口开始，顺势交代目标人群和结局。
+
+## 作者加了哪一步？
+这里连着说明研究设计、数据和方法，不另拆资料卡。
+
+## 效果到底怎么样？
+结果与关键图片放在一起解释，并保留会改变判断的数字。
+
+## 这个思路可以怎么用？
+说明文章的新意以及可迁移的科研设计启发。
+
+## 来源
+{source_url}
+
+状态：等待用户确认
+"""
+
+
 class KnowledgeCompilerTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
@@ -181,7 +214,7 @@ class KnowledgeCompilerTests(unittest.TestCase):
         return KnowledgeCompiler(store=self.store, cache=self.cache)
 
     def test_literature_skill_output_contract_matches_preview_validator(self):
-        from extensions.processing.compiler import LITERATURE_REQUIRED_SECTIONS
+        from extensions.processing.compiler import LITERATURE_NARRATIVE_TOPICS
 
         contract = (
             Path(__file__).parents[1]
@@ -191,8 +224,9 @@ class KnowledgeCompilerTests(unittest.TestCase):
             / "output-contract.md"
         ).read_text("utf-8")
 
-        for section in LITERATURE_REQUIRED_SECTIONS:
-            self.assertIn(f"## {section}", contract)
+        for topic, _ in LITERATURE_NARRATIVE_TOPICS:
+            self.assertIn(topic, contract)
+        self.assertIn("4–6 个自然小节", contract)
 
     def test_repository_skill_describes_the_installed_output_contract(self):
         skill = (
@@ -219,6 +253,15 @@ class KnowledgeCompilerTests(unittest.TestCase):
         accepted = self._compiler().accept_preview(
             self.job.id,
             _narrative_literature_preview(),
+            [],
+        )
+
+        self.assertEqual("preview_ready", accepted.status)
+
+    def test_validator_accepts_continuous_literature_explainer_with_natural_headings(self):
+        accepted = self._compiler().accept_preview(
+            self.job.id,
+            _continuous_literature_preview(),
             [],
         )
 

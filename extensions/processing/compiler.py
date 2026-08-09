@@ -40,6 +40,25 @@ LITERATURE_REQUIRED_SECTIONS = (
     "来源",
 )
 LEGACY_LITERATURE_REQUIRED_SECTIONS = REQUIRED_SECTIONS
+LITERATURE_NARRATIVE_TOPICS = (
+    (
+        "研究问题",
+        re.compile(r"为什么|问题|难题|痛点|漏掉|看不见|值得看"),
+    ),
+    (
+        "研究设计与方法",
+        re.compile(r"怎么做|如何做|作者.*(?:做|加|改)|哪一步|研究设计|方法|流程"),
+    ),
+    (
+        "主要发现",
+        re.compile(r"结果|发现|效果|表现|提升|改变|怎么样"),
+    ),
+    (
+        "价值与迁移",
+        re.compile(r"新意|创新|价值|启发|借鉴|迁移|怎么用|意味着"),
+    ),
+    ("来源", re.compile(r"来源|原文|参考")),
+)
 RESERVED_WIKI_ROOTS = {"微信公众号", "证据卡", "系统"}
 
 
@@ -481,6 +500,21 @@ class KnowledgeCompiler:
             cleared.append(job.id)
         return tuple(cleared)
 
+def _has_continuous_literature_narrative(markdown: str) -> bool:
+    """Accept natural explainer headings when they still cover the full argument."""
+
+    headings = [
+        match.group(1).strip()
+        for match in re.finditer(r"^##\s+(.+?)\s*$", markdown, re.MULTILINE)
+    ]
+    if not 4 <= len(headings) <= 6:
+        return False
+    return all(
+        any(pattern.search(heading) for heading in headings)
+        for _, pattern in LITERATURE_NARRATIVE_TOPICS
+    )
+
+
 def _validate_preview(
     job: KnowledgeJob,
     markdown: str,
@@ -520,6 +554,8 @@ def _validate_preview(
             ]
             if not legacy_missing:
                 missing = []
+        if missing and _has_continuous_literature_narrative(markdown):
+            missing = []
     else:
         missing = [
             section
