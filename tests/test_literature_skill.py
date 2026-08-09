@@ -87,6 +87,27 @@ class LiteratureSkillContractTests(unittest.TestCase):
         self.assertIn("语言自检", contract)
         self.assertIn("设问", contract)
         self.assertIn("装饰图", contract)
+        self.assertIn("由文章内容决定类型", contract)
+
+    def test_wechat_explainer_keeps_teaching_rhythm_and_article_led_novelty(self):
+        skill = (SKILL_ROOT / "SKILL.md").read_text("utf-8")
+        style = (SKILL_ROOT / "references" / "language-style.md").read_text(
+            "utf-8"
+        )
+
+        for required in (
+            "只删除广告、引流和界面噪声",
+            "保留原有讲解顺序、问题推进、口语节奏、有效类比和图文关系",
+            "事实核对留在后台",
+            "创新点必须从文章本身判断",
+            "统计方法创新和暴露因素/指标创新",
+            "不额外改造成审稿报告",
+        ):
+            with self.subTest(required=required):
+                self.assertIn(required, skill)
+
+        self.assertIn("一句提醒就够了", style)
+        self.assertIn("不要在研究问题、方法、结果和结尾重复同一条限制", style)
 
 
 if __name__ == "__main__":
