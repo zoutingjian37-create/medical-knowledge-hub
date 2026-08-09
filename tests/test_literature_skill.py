@@ -109,6 +109,24 @@ class LiteratureSkillContractTests(unittest.TestCase):
         self.assertIn("一句提醒就够了", style)
         self.assertIn("不要在研究问题、方法、结果和结尾重复同一条限制", style)
 
+    def test_open_access_full_text_embeds_and_explains_key_result_figures(self):
+        skill = (SKILL_ROOT / "SKILL.md").read_text("utf-8")
+        contract = (SKILL_ROOT / "references" / "output-contract.md").read_text(
+            "utf-8"
+        )
+
+        for required in (
+            "1–3 张",
+            "关键结果图",
+            "实际嵌入",
+            "图前提出读图问题",
+            "图后解释它回答了什么",
+        ):
+            with self.subTest(required=required):
+                self.assertIn(required, skill + contract)
+
+        self.assertIn("CC BY", skill + contract)
+
 
 if __name__ == "__main__":
     unittest.main()
