@@ -93,11 +93,30 @@ class OpenCLIRunner:
             )
 
         output = completed.stdout
+        daemon_started = False
+        if _daemon_is_stopped(output):
+            try:
+                await asyncio.to_thread(
+                    self._run_process, (*prefix, "daemon", "restart"), 12
+                )
+                completed = await asyncio.to_thread(
+                    self._run_process, (*prefix, "daemon", "status"), 8
+                )
+                output = completed.stdout
+                daemon_started = True
+            except OpenCLIRunnerError as exc:
+                return OpenCLIStatus(
+                    installed=True,
+                    bridge_connected=False,
+                    detail=f"OpenCLI daemon could not start: {exc}",
+                )
         version_match = re.search(r"^Version:\s*v?([^\s]+)", output, re.MULTILINE)
         extension_match = re.search(r"^Extension:\s*(.+)$", output, re.MULTILINE)
         extension = extension_match.group(1).strip() if extension_match else "unknown"
         connected = extension.startswith("connected")
         detail = "ready" if connected else f"browser bridge {extension}"
+        if daemon_started:
+            detail = f"daemon started; {detail}"
         return OpenCLIStatus(
             installed=True,
             bridge_connected=connected,
@@ -178,3 +197,7 @@ class OpenCLIRunner:
             message,
         )
         return safe[:1000]
+
+
+def _daemon_is_stopped(output: str) -> bool:
+    return bool(re.search(r"^Daemon:\s*not running\s*$", output, re.MULTILINE | re.I))

@@ -1,5 +1,6 @@
 import asyncio
 import os
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -43,6 +44,27 @@ class OpenCLIAdapterTests(unittest.TestCase):
             runner = OpenCLIRunner()
 
         self.assertEqual(Path(directory), runner.runtime_dir)
+
+    def test_status_starts_a_stopped_daemon_before_checking_the_browser_bridge(self):
+        runner = OpenCLIRunner(executable="opencli")
+        responses = [
+            subprocess.CompletedProcess(["opencli"], 0, stdout="Daemon: not running\n"),
+            subprocess.CompletedProcess(["opencli"], 0, stdout="Daemon restarted\n"),
+            subprocess.CompletedProcess(
+                ["opencli"],
+                0,
+                stdout="Version: v1.8.6\nExtension: connected\n",
+            ),
+        ]
+        with patch.object(runner, "command_prefix", return_value=("opencli",)), patch.object(
+            runner, "_run_process", side_effect=responses
+        ) as run_process:
+            status = asyncio.run(runner.status())
+
+        self.assertTrue(status.installed)
+        self.assertTrue(status.bridge_connected)
+        self.assertIn("daemon started", status.detail)
+        self.assertEqual(("opencli", "daemon", "restart"), run_process.call_args_list[1].args[0])
 
     def test_all_four_platforms_use_the_same_adapter_class(self):
         adapters = [
